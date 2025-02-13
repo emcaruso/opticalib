@@ -1,3 +1,2 @@
-data/*
-!data/charuco_boards/
+results/*
 __pycache__/

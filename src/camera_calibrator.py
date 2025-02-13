@@ -18,3 +18,5 @@ class CameraCalibrator():
 
     def collect_images(self):
         c = Collector( cfg = self.cfg.collectors, logger = self.logger)
+        imgs_raw, imgs_postpr = c.capture_manual()
+        c.save(imgs_raw)

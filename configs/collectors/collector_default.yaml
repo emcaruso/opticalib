@@ -5,8 +5,7 @@ defaults:
   - postprocessings: none
 
 paths:
-  save_dir: "${oc.env:ROOT}/data/grabbed"
-  log_file: "${oc.env:ROOT}/data/log.txt"
+  save_dir: "${oc.env:ROOT}/results/collection"
 
 mode:
   val: manual

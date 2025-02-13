@@ -11,8 +11,8 @@ hydra:
 
 paths:
   charuco_board_path: "${oc.env:ROOT}/data/charuco_boards/charuco_11x9_cvl.yaml"
-  save_dir: "${oc.env:ROOT}/data/results/results"
-  log_file: "${oc.env:ROOT}/data/results/log.txt"
+  save_dir: "${oc.env:ROOT}/results/results"
+  log_file: "${oc.env:ROOT}/results/log.txt"
   collected_images_dir:
 
 calibration:

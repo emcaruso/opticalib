@@ -29,7 +29,6 @@ def main(cfg: DictConfig):
 def run(cfg: DictConfig, logger: Logger):
     c = CameraCalibrator(logger=logger, cfg = cfg)
     c.collect_images()
-    pass
 
 
 if __name__ == "__main__":
