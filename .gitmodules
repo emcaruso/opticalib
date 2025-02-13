@@ -1,0 +1,3 @@
+[submodule "src/sensorflow"]
+	path = src/sensorflow
+	url = git@github.com:emcaruso/sensorflow.git
