@@ -204,8 +204,8 @@ BlackLevel	0.000
 BlackLevelSelector	All
 Gamma	1.0000
 DigitalShift	0
-BslColorSpace	sRgb
-BslLightSourcePreset	Daylight6500K
+BslColorSpace	Off
+BslLightSourcePreset	Off
 BslLightSourcePresetFeatureSelector	WhiteBalance
 BslLightSourcePresetFeatureEnable	1
 BslLightSourcePresetFeatureSelector	ColorTransformation
