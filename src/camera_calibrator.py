@@ -1,35 +1,39 @@
 import sys, os
+
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from logging import Logger
-from typing import Dict
-from pathlib import Path
 from omegaconf import DictConfig
-from utils_ema.config_utils import load_yaml
-from utils_ema.charuco import Charuco
-from utils_ema.log import get_logger_default
 from sensorflow.src.collector import Collector
-from objects.charuco import CharucoObjects
+from solver import Solver
+from objects.charuco import CharucoObject, CharucoDetector
 
 
-class CameraCalibrator():
+class CameraCalibrator:
 
-    def __init__(self, cfg : DictConfig, logger : Logger):
+    def __init__(self, cfg: DictConfig, logger: Logger):
         self.cfg = cfg
         self.logger = logger
         self.load_objects()
 
     def load_objects(self):
-        assert( "type" in self.cfg.objects )
+        assert "type" in self.cfg.objects
         if self.cfg.objects.type == "charuco":
-            self.objects = CharucoObjects(self.cfg.objects)
+            self.obj = CharucoObject.init_with_world_poses(self.cfg.objects)
         # add more objects here in the future
-        
+
     def collect_images(self):
-        c = Collector( cfg = self.cfg.collectors, logger = self.logger)
-        c.postprocessing.add_function(self.objects.draw_features)
-        if self.cfg.calibration.collect.mode.val == "manual":
-            c.capture_manual(in_ram = self.cfg.calibration.collect.in_ram)
+        c = Collector(cfg=self.cfg.collector, logger=self.logger)
+        c.postprocessing.add_function(self.obj.detector.draw_features)
+        if self.cfg.collect.mode.val == "manual":
+            c.capture_manual(in_ram=self.cfg.collect.in_ram)
             c.save()
-        elif self.cfg.calibration.collect.mode.val == "automatic":
-            c.capture_till_q(in_ram = self.cfg.calibration.collect.in_ram)
+        elif self.cfg.collect.mode.val == "automatic":
+            c.capture_till_q(in_ram=self.cfg.collect.in_ram)
             c.save()
+        # add more collection modes here in the future
+
+    def calibrate(self):
+
+        c = Solver(cfg=self.cfg.calibration, obj=self.obj, logger=self.logger)
+        c.run()
+        c.save()
