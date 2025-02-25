@@ -1,4 +1,6 @@
 import os
+import bpy
+from types import SimpleNamespace
 import cv2
 import numpy as np
 import torch
@@ -7,65 +9,104 @@ from omegaconf import DictConfig
 from objects.object import Object, Features, ObjectDetector
 from utils_ema.charuco import Charuco
 from utils_ema.geometry_pose import Pose
+from utils_ema.geometry_euler import eul
 from utils_ema.image import Image
 
 
-def __first_higher(lst, value):
+def first_higher(lst, value):
     return next((x for x in lst if x > value), None)
 
 
 class CharucoObject(Object):
 
     @classmethod
-    def init_with_world_poses(cls, cfg: DictConfig):
-        n = cfg.number_board
+    def init_base(cls, cfg: DictConfig):
+        n = cfg.boards.n_boards
+        p = CharucoObject.__get_board_params(cfg)
         return cls(
-            cfg,
-            pose=Pose(euler=torch.zeros(3, dtype=torch.float32)),
+            cfg=cfg,
+            params=p,
+            pose=Pose(euler=eul(torch.zeros(3, dtype=torch.float32))),
             relative_poses=[
-                Pose(euler=torch.zeros(3, dtype=torch.float32)) for _ in range(n)
+                Pose(euler=eul(torch.zeros(3, dtype=torch.float32))) for _ in range(n)
             ],
         )
 
-    def __init__(self, cfg: DictConfig, pose: Pose, relative_poses: List[Pose]) -> None:
+    def __init__(
+        self,
+        cfg: DictConfig,
+        params: SimpleNamespace,
+        pose: Pose,
+        relative_poses: List[Pose],
+        device="cpu",
+    ) -> None:
         self.cfg = cfg
-
-        self.length_square_real = self.cfg.boards.square_size
-        self.length_marker_real = self.cfg.boards.square_size * (
-            self.cfg.boards.length_marker / self.cfg.boards.length_square
-        )
-        self.n_markers = int(
-            self.cfg.boards.number_x_square * self.cfg.boards.number_y_square / 2
-        )
-        self.n_corners = int(
-            (self.cfg.boards.number_x_square - 1)
-            * (self.cfg.boards.number_y_square - 1)
-        )
-        self.aruco_dict_size = __first_higher(
-            [50, 100, 250, 1000], self.n_markers * self.cfg.boards.number_board
-        )
-        self.aruco_dictionary = Charuco.get_aruco_dict(
-            n=self.cfg.boards.aruco_n, size=self.aruco_dict_size
-        )[0]
-        self.length_x = self.cfg.boards.number_x_square * self.length_square_real
-        self.length_y = self.cfg.boards.number_y_square * self.length_square_real
-
-        self.__get_boards()
+        self.params = params
         self.pose = pose
         self.relative_poses = relative_poses
-        self.points_list = [self.__get_grid() for _ in range(self.n_boards)]
-        self.ids_list = torch.cat(
+        self.device = device
+        self.to(device)
+
+    def to(self, device):
+        self.pose.to(device)
+        for p in self.relative_poses:
+            p.to(device)
+        self.params.points_list = [p.to(device) for p in self.params.points_list]
+        self.params.ids_list = self.params.ids_list.to(device)
+        return self
+
+    @staticmethod
+    def __get_board_params(cfg):
+        params = SimpleNamespace(**cfg.boards)
+        params.aspect_ratio = params.number_x_square / params.number_y_square
+        params.length_square_real = params.square_size
+        params.length_marker_real = params.square_size * (
+            params.length_marker / params.length_square
+        )
+        params.n_markers = int(params.number_x_square * params.number_y_square / 2)
+        params.n_corners = int(
+            (params.number_x_square - 1) * (params.number_y_square - 1)
+        )
+        params.aruco_dict_size = first_higher(
+            [50, 100, 250, 1000], params.n_markers * params.n_boards
+        )
+        params.aruco_dictionary = Charuco.get_aruco_dict(
+            n=params.aruco_n, size=params.aruco_dict_size
+        )[0]
+        params.length_x = params.number_x_square * params.length_square_real
+        params.length_y = params.number_y_square * params.length_square_real
+        CharucoObject.__put_board_cv2(params)
+        params.points_list = [
+            CharucoObject.__get_grid(params) for _ in range(params.n_boards)
+        ]
+        params.ids_list = torch.cat(
             [
-                torch.arange(i * self.n_corners, (i + 1) * self.n_corners)
-                for i in range(self.n_boards)
+                torch.arange(i * params.n_corners, (i + 1) * params.n_corners)
+                for i in range(params.n_boards)
             ]
         )
-        self._detector = CharucoDetector(self)
+        params.detector_params = cfg.detector
+        return params
 
-    def __get_params(self):
-        pass
+    @staticmethod
+    def __put_board_cv2(params) -> None:
+        params.boards_cv2 = []
 
-    def clone(self, same_pose: bool = False, same_relative_poses: bool = True):
+        for i in range(params.n_boards):
+            params.boards_cv2.append(
+                cv2.aruco.CharucoBoard(
+                    (
+                        params.number_x_square,
+                        params.number_y_square,
+                    ),
+                    params.length_square_real,
+                    params.length_marker_real,
+                    params.aruco_dictionary,
+                    np.arange(i * params.n_markers, (i + 1) * params.n_markers),
+                )
+            )
+
+    def clone(self, same_pose: bool, same_relative_poses: bool):
         if same_pose:
             pose = self.pose
         else:
@@ -75,105 +116,125 @@ class CharucoObject(Object):
             relative_poses = self.relative_poses
         else:
             relative_poses = [pose.clone() for pose in self.relative_poses]
-        return CharucoObject(cfg, pose, relative_poses)
-
-    def __get_boards(self) -> None:
-        self.boards = []
-        self.n_boards = len(self.cfg.boards.number)
-
-        for i in range(self.cfg.boards.number_board):
-            self.boards.append(
-                cv2.aruco.CharucoBoard(
-                    (
-                        self.cfg.boards.number_x_square,
-                        self.cfg.boards.number_y_square,
-                    ),
-                    self.length_square_real,
-                    self.length_marker_real,
-                    self.aruco_dictionary,
-                    np.arange(i * self.n_markers, (i + 1) * self.n_markers),
-                )
-            )
+        return CharucoObject(self.cfg, self.params, pose, relative_poses)
 
     def generate_charuco_images(self) -> List[Image]:
         images = []
-        for i in range(len(self.boards)):
+        for i in range(len(self.params.boards_cv2)):
             images.append(self.generate_charuco_image(board_id=i))
         return images
 
     def generate_charuco_image(
         self, board_id: int = 0, marginSize: int = 0, marker_pixs: int = 100
     ) -> Image:
-        b = self.boards[board_id]
+        b = self.params.boards_cv2[board_id]
         img = cv2.aruco.CharucoBoard.generateImage(
             b,
             (
-                self.cfg.boards.number_x_square * marker_pixs,
-                self.cfg.boards.number_y_square * marker_pixs,
+                self.params.number_x_square * marker_pixs,
+                self.params.number_y_square * marker_pixs,
             ),
             marginSize=marginSize,
         )
         image = Image(np.expand_dims(img, -1))
         return image
 
-    def __get_grid(self) -> torch.Tensor:
+    @staticmethod
+    def __get_grid(params) -> torch.Tensor:
         grid = torch.tensor(
             [
                 [
                     [
-                        x * self.length_square_real,
-                        y * self.length_square_real,
+                        x * params.length_square_real,
+                        y * params.length_square_real,
                         0,
                     ]
-                    for x in range(self.cfg.number_x_square - 1)
+                    for x in range(params.number_x_square - 1)
                     # for x in range(self.number_x_square - 2, -1, -1)
                 ]
-                for y in range(self.cfg.number_y_square - 1)
+                for y in range(params.number_y_square - 1)
             ]
         ).reshape(
-            (self.cfg.number_x_square - 1) * (self.cfg.number_y_square - 1),
+            (params.number_x_square - 1) * (params.number_y_square - 1),
             3,
         )
         grid[..., 0] -= grid[-1, 0] / 2
         grid[..., 1] -= grid[-1, 1] / 2
         grid[..., 1] *= -1
-        grid = grid.type(self.pose.location().dtype)
-        return grid.to(self.cfg.device)
+        return grid
 
-    @property
-    def points(self) -> torch.Tensor:
+    def points(self) -> List[torch.Tensor]:
         points_list = []
-        for board_id, points in enumerate(self.points_list):
-            # self.pose = w_T_obj
-            # self.relative_poses = obj_T_board
-            p = (self.pose.rotation() @ points.T).T + self.pose.location()
+        for board_id, points in enumerate(self.params.points_list):
+            R1 = self.pose.rotation()
+            R2 = self.relative_poses[board_id].rotation()
+            t1 = self.pose.location()
+            t2 = self.relative_poses[board_id].location()
+            R = R2 @ R1  # Combine rotations
+            t = R2 @ t1 + t2  # Combine translations
+            p = points @ R.T + t
             points_list.append(p)
-        return torch.cat(points_list, dim=0)
+        return points_list
 
-    @property
-    def ids(self) -> torch.Tensor:
-        return self.ids_list
+    def ids(self) -> List[torch.Tensor]:
+        return self.params.ids_list
 
-    @property
-    def detector(self) -> CharucoDetector:
-        return self._detector
+    def put_blender_obj_in_scene(self, scene):
+
+        # --- Step 2: Create a new plane mesh object ---
+        mesh = bpy.data.meshes.new(name="PlaneMesh")  # Create an empty mesh
+        obj = bpy.data.objects.new(
+            name="Plane", object_data=mesh
+        )  # Create an object using the mesh
+
+        # Create a plane geometry and assign it to the mesh
+        vertices = [  # Define the 4 vertices of the plane
+            (-1, -1, 0),
+            (1, -1, 0),
+            (1, 1, 0),
+            (-1, 1, 0),
+        ]
+        faces = [(0, 1, 2, 3)]  # Define the 4 faces of the plane
+        mesh.from_pydata(vertices, [], faces)
+
+        scene.collection.objects.link(obj)
+
+    # # Create a new mesh and object
+    # mesh = bpy.data.meshes.new(name="PlaneMesh")
+    # obj = bpy.data.objects.new(name="PlaneObject", object_data=mesh)
+    # scene.collection.objects.link(obj)
+    #
+    # # Create boards
+    # boards = []
+    # for board_id, p in enumerate(self.relative_poses):
+    #     bpy.ops.mesh.primitive_plane_add(size=1)
+    #     board = bpy.context.active_object
+    #     board.name = f"board_{board_id:03d}"
+    #     return board
+    #     boards.append(board)
+    #
+    # # make boards children of an empty object
+    # bpy.ops.object.empty_add(type="PLAIN_AXES")
+    # empty = bpy.context.active_object
+    # empty.name = "calib_obj"
+    # for board in boards:
+    #     board.parent = empty
+    #
+    # return empty
 
 
 class CharucoDetector(ObjectDetector):
 
-    def __init__(self, charuco_obj: CharucoObject) -> None:
-        self.obj = charuco_obj
+    def __init__(self, params: SimpleNamespace) -> None:
+        self.params = params
         self.__get_detector()
-        # Image.show_multiple_images(self.generate_charuco_images())
-        # im = Image.from_path("/home/emcarus/Desktop/git_repos/refactored_project/opticalib/data/tt.png")
-        # self.draw_charuco(im).show()
 
     def __get_detector(self) -> None:
         detector_params = cv2.aruco.DetectorParameters()
-        for k, v in self.obj.cfg.detector.items():
+        for k, v in self.params.detector_params.items():
             detector_params.__setattr__(k, v)
         self.detector = cv2.aruco.ArucoDetector(
-            self.obj.aruco_dictionary, detector_params
+            self.params.aruco_dictionary, detector_params
         )
 
     def detect_charuco_corners(self, image: Image) -> Dict[str, List[torch.Tensor]]:
@@ -189,12 +250,12 @@ class CharucoDetector(ObjectDetector):
 
         if marker_corners:
 
-            for i, b in enumerate(self.obj.boards):
+            for i, b in enumerate(self.params.boards_cv2):
 
                 valid_corners = []
                 valid_ids = []
                 valid_range = np.arange(
-                    i * self.obj.n_markers, (i + 1) * self.obj.n_markers
+                    i * self.params.n_markers, (i + 1) * self.params.n_markers
                 )
 
                 for j, id in enumerate(marker_ids):
@@ -212,7 +273,7 @@ class CharucoDetector(ObjectDetector):
                 if retval:
                     charuco_corners_all.append(torch.from_numpy(charuco_corners))
                     charuco_corners_ids.append(
-                        torch.from_numpy(charuco_ids + i * self.obj.n_corners)
+                        torch.from_numpy(charuco_ids + i * self.params.n_corners)
                     )
                     charuco_markers_all.append(torch.from_numpy(valid_corners))
                     charuco_markers_ids.append(torch.from_numpy(valid_ids))
@@ -247,11 +308,11 @@ class CharucoDetector(ObjectDetector):
         for i in range(len(charuco_ids)):
             if corners:
                 img = cv2.aruco.drawDetectedCornersCharuco(
-                    img, charuco_corners[i], charuco_ids[i]
+                    img, charuco_corners[i].numpy(), charuco_ids[i].numpy()
                 )
             if markers:
                 img = cv2.aruco.drawDetectedMarkers(
-                    img, marker_corners[i], marker_ids[i], borderColor
+                    img, marker_corners[i].numpy(), marker_ids[i].numpy(), borderColor
                 )
         return Image(img)
 

@@ -3,20 +3,20 @@ from typing import List, Dict
 import numpy as np
 import torch
 from utils_ema.image import Image
-from utils_ema.pose import Pose
+from utils_ema.geometry_pose import Pose
 
 
 class Features(ABC):
     @property
     @abstractmethod
     def points(self) -> List[torch.Tensor]:
-        """numpy array containing a batch of 2D points."""
+        """numpy array containing a list of 2D point batches, each element for each board."""
         pass
 
     @property
     @abstractmethod
     def ids(self) -> List[torch.Tensor]:
-        """numpy array containing the ids of the 2D points."""
+        """numpy array containing a list of id batches, each element for each board."""
         pass
 
 
@@ -39,17 +39,29 @@ class ObjectDetector(ABC):
 
 
 class Object(ABC):
-    @property
+
     @abstractmethod
-    def parameters(self) -> torch.Tensor:
+    def points(self) -> List[torch.Tensor]:
         pass
 
-    @property
     @abstractmethod
-    def pose_list(self) -> List[Pose]:
+    def ids(self) -> List[torch.Tensor]:
         pass
 
-    @property
     @abstractmethod
-    def detector(self) -> ObjectDetector:
+    def clone(self, same_pose: bool, same_relative_poses: bool):
         pass
+
+    @abstractmethod
+    def to(self, device):
+        pass
+
+    @abstractmethod
+    def put_blender_obj_in_scene(self):
+        pass
+
+    #
+    # @property
+    # @abstractmethod
+    # def detector(self) -> ObjectDetector:
+    #     pass

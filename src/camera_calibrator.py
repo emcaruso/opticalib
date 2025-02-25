@@ -18,12 +18,13 @@ class CameraCalibrator:
     def load_objects(self):
         assert "type" in self.cfg.objects
         if self.cfg.objects.type == "charuco":
-            self.obj = CharucoObject.init_with_world_poses(self.cfg.objects)
+            self.obj = CharucoObject.init_base(self.cfg.objects)
+            self.detector = CharucoDetector(self.obj.params)
         # add more objects here in the future
 
     def collect_images(self):
         c = Collector(cfg=self.cfg.collector, logger=self.logger)
-        c.postprocessing.add_function(self.obj.detector.draw_features)
+        c.postprocessing.add_function(self.detector.draw_features)
         if self.cfg.collect.mode.val == "manual":
             c.capture_manual(in_ram=self.cfg.collect.in_ram)
             c.save()
@@ -34,6 +35,11 @@ class CameraCalibrator:
 
     def calibrate(self):
 
-        c = Solver(cfg=self.cfg.calibration, obj=self.obj, logger=self.logger)
-        c.run()
+        c = Solver(
+            cfg=self.cfg,
+            obj=self.obj,
+            detector=self.detector,
+            logger=self.logger,
+        )
+        # c.run()
         c.save()
