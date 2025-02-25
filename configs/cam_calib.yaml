@@ -1,7 +1,10 @@
 defaults:
   - _self_
   - objects: charuco_boards/charuco_11x9_cvl
-  - collectors: collector_default
+  - collector: collector_default
+  - optimizer: adam
+  - scheduler: none
+  - loss: l1
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -11,16 +14,27 @@ hydra:
     dir: .
 
 paths:
-  save_dir: "${oc.env:ROOT}/results/results"
+  collection_dir: "${oc.env:ROOT}/results/collection"
+  calib_results_dir: "${oc.env:ROOT}/results/calib_results"
   log_file: "${oc.env:ROOT}/results/log.txt"
   collection_dir: "${oc.env:ROOT}/results/collection"
   collected_images_dir:
 
+collect:
+  do: True
+  mode:
+    val: "manual"
+    valid_options:
+      - "manual"
+      - "automatic"
+  in_ram: True
+
 calibration:
-  collect:
-    mode:
-      val: "manual"
-      valid_options:
-        - "manual"
-        - "automatic"
-    in_ram: True
+  do: True
+  device: cpu # cpu or gpu
+  # in_ram: True
+  iterations: 1000
+  show_realtime: False
+  objects_pose_fix:
+    position: [1, 0, 0]
+    eul: [0, 0, 1]
