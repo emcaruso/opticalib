@@ -13,6 +13,7 @@ hydra:
 paths:
   save_dir: "${oc.env:ROOT}/results/results"
   log_file: "${oc.env:ROOT}/results/log.txt"
+  collection_dir: "${oc.env:ROOT}/results/collection"
   collected_images_dir:
 
 calibration:

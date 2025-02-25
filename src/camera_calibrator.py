@@ -33,3 +33,7 @@ class CameraCalibrator():
         elif self.cfg.calibration.collect.mode.val == "automatic":
             c.capture_till_q(in_ram = self.cfg.calibration.collect.in_ram)
             c.save()
+
+    def calibrate(self):
+        c = Charuco(self.cfg.calibration)
+        c.calibrate()
