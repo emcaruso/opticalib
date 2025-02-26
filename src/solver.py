@@ -6,10 +6,12 @@ from tqdm import tqdm
 from typing import List, Tuple
 from logging import Logger
 from omegaconf import DictConfig
+from pathlib import Path
 from hydra.utils import instantiate
 from objects.object import Object, Features, ObjectDetector
 from sensorflow.src.collector import Collector
 from utils_ema.camera_cv import Camera_cv
+from blender_saver import blender_save
 
 
 class Solver:
@@ -141,17 +143,11 @@ class Solver:
             p.grad *= params_mask[i]
 
     def save(self) -> None:
-        process = subprocess.run(
-            [
-                "blenderproc",
-                "run",
-                "/home/manu/Desktop/repositories/refactored/opticalib/src/blender_saver.py",
-            ]
-        )
 
-        # blender_save(
-        #     self.cfg.paths.calib_results_dir, self.objects, self.cameras, self.logger
-        # )
+        blender_save(
+            self.cfg.paths.calib_results_dir, self.objects, self.cameras, self.logger
+
+        )
 
     def load(self) -> bool:
         return True

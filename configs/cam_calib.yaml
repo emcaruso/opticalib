@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - objects: charuco_boards/charuco_11x9_cvl
+  - objects: charuco_boards/charuco_11x9_cvl.yaml
   - collector: collector_default
   - optimizer: adam
   - scheduler: none
@@ -14,20 +14,20 @@ hydra:
     dir: .
 
 paths:
+  src_dir: "${oc.env:ROOT}/src"
   collection_dir: "${oc.env:ROOT}/results/collection"
+  charuco_images_dir: "${oc.env:ROOT}/results/charuco_images"
   calib_results_dir: "${oc.env:ROOT}/results/calib_results"
   log_file: "${oc.env:ROOT}/results/log.txt"
-  collection_dir: "${oc.env:ROOT}/results/collection"
-  collected_images_dir:
 
 collect:
   do: True
   mode:
-    val: "manual"
+    val: "automatic"
     valid_options:
       - "manual"
       - "automatic"
-  in_ram: True
+  in_ram: False
 
 calibration:
   do: True
@@ -38,3 +38,5 @@ calibration:
   objects_pose_fix:
     position: [1, 0, 0]
     eul: [0, 0, 1]
+
+get_charuco_images: True

@@ -1,5 +1,6 @@
 import os
 import bpy
+from pathlib import Path
 from types import SimpleNamespace
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ from utils_ema.charuco import Charuco
 from utils_ema.geometry_pose import Pose
 from utils_ema.geometry_euler import eul
 from utils_ema.image import Image
+from utils_ema.blender_utils import put_plane_in_scene, set_object_pose, set_object_texture
 
 
 def first_higher(lst, value):
@@ -179,48 +181,31 @@ class CharucoObject(Object):
     def ids(self) -> List[torch.Tensor]:
         return self.params.ids_list
 
-    def put_blender_obj_in_scene(self, scene):
+    def put_blender_obj_in_scene(self, scene, scene_dir):
 
-        # --- Step 2: Create a new plane mesh object ---
-        mesh = bpy.data.meshes.new(name="PlaneMesh")  # Create an empty mesh
-        obj = bpy.data.objects.new(
-            name="Plane", object_data=mesh
-        )  # Create an object using the mesh
+        images = self.generate_charuco_images()
+        img_paths = []
+        for i, img in enumerate(images):
+            img_paths.append( str(Path(scene_dir) / "charuco_images" / f"board_{i:03d}.png") )
+            img.save(img_paths[-1])
 
-        # Create a plane geometry and assign it to the mesh
-        vertices = [  # Define the 4 vertices of the plane
-            (-1, -1, 0),
-            (1, -1, 0),
-            (1, 1, 0),
-            (-1, 1, 0),
-        ]
-        faces = [(0, 1, 2, 3)]  # Define the 4 faces of the plane
-        mesh.from_pydata(vertices, [], faces)
+        # # Create boards
+        boards = []
+        for board_id, p in enumerate(self.relative_poses):
+            name = f"board_{board_id:03d}"
+            board = put_plane_in_scene(scene, name, self.params.length_x, self.params.length_y)
+            set_object_pose(board, p)
+            set_object_texture(name=name, obj=board, image_path=img_paths[board_id])
+            boards.append(board)
 
-        scene.collection.objects.link(obj)
+        # make boards children of an empty object
+        bpy.ops.object.empty_add(type="PLAIN_AXES")
+        empty = bpy.context.active_object
+        empty.name = "calib_obj"
+        for board in boards:
+            board.parent = empty
 
-    # # Create a new mesh and object
-    # mesh = bpy.data.meshes.new(name="PlaneMesh")
-    # obj = bpy.data.objects.new(name="PlaneObject", object_data=mesh)
-    # scene.collection.objects.link(obj)
-    #
-    # # Create boards
-    # boards = []
-    # for board_id, p in enumerate(self.relative_poses):
-    #     bpy.ops.mesh.primitive_plane_add(size=1)
-    #     board = bpy.context.active_object
-    #     board.name = f"board_{board_id:03d}"
-    #     return board
-    #     boards.append(board)
-    #
-    # # make boards children of an empty object
-    # bpy.ops.object.empty_add(type="PLAIN_AXES")
-    # empty = bpy.context.active_object
-    # empty.name = "calib_obj"
-    # for board in boards:
-    #     board.parent = empty
-    #
-    # return empty
+        return empty
 
 
 class CharucoDetector(ObjectDetector):
@@ -237,6 +222,14 @@ class CharucoDetector(ObjectDetector):
             self.params.aruco_dictionary, detector_params
         )
 
+    def images_has_at_least_one_feature(self, images : List[Image]) -> bool:
+        features = self.detect_features(images)
+        for fts in features:
+            for c in fts.charuco_corners:
+                if len(c) > 0:
+                    return True
+        return False
+
     def detect_charuco_corners(self, image: Image) -> Dict[str, List[torch.Tensor]]:
 
         img = image.uint8().numpy()
@@ -247,45 +240,48 @@ class CharucoDetector(ObjectDetector):
         charuco_markers_ids = []
 
         marker_corners, marker_ids, _ = self.detector.detectMarkers(img)
+        if marker_ids is None:
+            marker_ids = []
+            marker_corners = []
 
-        if marker_corners:
+        for i, b in enumerate(self.params.boards_cv2):
 
-            for i, b in enumerate(self.params.boards_cv2):
+            valid_corners = []
+            valid_ids = []
+            valid_range = np.arange(
+                i * self.params.n_markers, (i + 1) * self.params.n_markers
+            )
 
-                valid_corners = []
-                valid_ids = []
-                valid_range = np.arange(
-                    i * self.params.n_markers, (i + 1) * self.params.n_markers
-                )
+            for j, id in enumerate(marker_ids):
+                if id in valid_range:
+                    valid_corners.append(marker_corners[j])
+                    valid_ids.append(id)
+            valid_corners = np.array(valid_corners)
+            valid_ids = np.array(valid_ids)
 
-                for j, id in enumerate(marker_ids):
-                    if id in valid_range:
-                        valid_corners.append(marker_corners[j])
-                        valid_ids.append(id)
-                valid_corners = np.array(valid_corners)
-                valid_ids = np.array(valid_ids)
 
+            if len(valid_corners) == 0:
+                valid_corners = np.empty([0,1,4,2])
+                valid_ids = np.empty([0,1])
+                retval = False
+            else:
                 retval, charuco_corners, charuco_ids = (
                     cv2.aruco.interpolateCornersCharuco(
                         valid_corners, valid_ids, img, b
                     )
                 )
-                if retval:
-                    charuco_corners_all.append(torch.from_numpy(charuco_corners))
-                    charuco_corners_ids.append(
-                        torch.from_numpy(charuco_ids + i * self.params.n_corners)
-                    )
-                    charuco_markers_all.append(torch.from_numpy(valid_corners))
-                    charuco_markers_ids.append(torch.from_numpy(valid_ids))
+            if not retval:
+                charuco_corners = np.empty([0,1,2])
+                charuco_ids = np.empty([0,1])
 
-            # if len(charuco_corners_all) == 0:torch.from_numpy()
-            #     return {
-            #         "charuco_corners": np.array([]),
-            #         "charuco_ids": np.array([]),
-            #         "marker_corners": np.array([]),
-            #         "marker_ids": np.array([]),
-            #     }
-            #     return np.array([]), np.array([]), np.array([]), np.array([])
+
+            charuco_corners_all.append(torch.from_numpy(charuco_corners))
+            charuco_corners_ids.append(
+                torch.from_numpy(charuco_ids + i * self.params.n_corners)
+            )
+            charuco_markers_all.append(torch.from_numpy(valid_corners))
+            charuco_markers_ids.append(torch.from_numpy(valid_ids))
+
 
         return {
             "charuco_corners": charuco_corners_all,
@@ -297,6 +293,8 @@ class CharucoDetector(ObjectDetector):
     def draw_charuco(
         self, image, corners=True, markers=True, borderColor=(255, 0, 0)
     ) -> Image:
+
+
         charuco_corners, charuco_ids, marker_corners, marker_ids = list(
             self.detect_charuco_corners(image).values()
         )

@@ -20,9 +20,6 @@ def main(cfg: DictConfig):
     # init logger
     logger = get_logger_default(out_path=cfg.paths.log_file)
 
-    import ipdb
-
-    ipdb.set_trace()
     # run the program
     logger.info("Program started.")
     run(cfg, logger)
@@ -32,17 +29,13 @@ def main(cfg: DictConfig):
 def run(cfg: DictConfig, logger: Logger):
     c = CameraCalibrator(logger=logger, cfg=cfg)
 
+    c.generate_charuco_images(show = cfg.get_charuco_images)
+
     if cfg.collect.do:
         c.collect_images()
 
     if cfg.calibration.do:
         c.calibrate()
-
-    try:
-        sys.exit(0)  # Or any other exit code
-    except SystemExit:
-        pass  # Prevents traceback from showing
-
 
 if __name__ == "__main__":
     main()
