@@ -1,10 +1,10 @@
 defaults:
   - _self_
-  - objects: charuco_boards/charuco_11x9_cvl.yaml
-  - collector: collector_default
-  - optimizer: adam
-  - scheduler: none
-  - loss: l1
+  # - objects: charuco_boards/charuco_11x9_cvl.yaml
+  # - collector: collector_default
+  # - optimizer: adam
+  # - scheduler: none
+  # - loss: l1
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -15,6 +15,7 @@ hydra:
 
 paths:
   src_dir: "${oc.env:ROOT}/src"
+  mccalib_yaml: "${oc.env:ROOT}/configs/charuco_boards/charuco_cube.yaml"
   results_dir: "${oc.env:ROOT}/results"
   collection_dir: "${paths.results_dir}/collection"
   charuco_images_dir: "${paths.results_dir}/charuco_images"
@@ -36,12 +37,5 @@ collect:
 
 calibration:
   do: True
-  device: cpu # cpu or cuda
-  # in_ram: True
-  iterations: 10000
-  reg_weight: 10000
-  objects_pose_opt:
-    position: [1, 0, 0]
-    eul: [0, 0, 0]
 
 get_charuco_images: True

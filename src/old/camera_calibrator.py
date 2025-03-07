@@ -5,9 +5,10 @@ from pathlib import Path
 from logging import Logger
 from omegaconf import DictConfig
 from sensorflow.src.collector import Collector
-from charuco import CharucoObject, CharucoDetector
+from solver import Solver
+from objects.charuco import CharucoObject, CharucoDetector
 from utils_ema.image import Image
-from utils_ema.config_utils import load_yaml
+
 
 class CameraCalibrator:
 
@@ -17,9 +18,11 @@ class CameraCalibrator:
         self.load_objects()
 
     def load_objects(self):
-        board_cfg = load_yaml(self.cfg.paths.mccalib_yaml)
-        self.obj = CharucoObject.init_base(board_cfg)
-        self.detector = CharucoDetector(self.obj.params)
+        assert "type" in self.cfg.objects
+        if self.cfg.objects.type == "charuco":
+            self.obj = CharucoObject.init_base(self.cfg.objects, device=self.cfg.calibration.device)
+            self.detector = CharucoDetector(self.obj.params)
+        # add more objects here in the future
 
     def collect_images(self):
         c = Collector(cfg=self.cfg.collector, logger=self.logger)
@@ -39,8 +42,15 @@ class CameraCalibrator:
             c.light_controller.led_on(channel, amp=self.cfg.collect.lights.intensity)
 
     def calibrate(self):
-        pass
 
+        s = Solver(
+            cfg=self.cfg,
+            obj=self.obj,
+            detector=self.detector,
+            logger=self.logger,
+        )
+        s.run()
+        s.save()
 
     def generate_charuco_images(self, show=False):
         images = self.obj.generate_charuco_images()

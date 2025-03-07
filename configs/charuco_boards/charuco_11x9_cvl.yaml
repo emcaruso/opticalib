@@ -10,7 +10,7 @@ boards:
   n_boards: 2 # number of boards used for calibration (for overlapping camera 1 is enough ...)
   boards_index: [] #leave it empty [] if the board index are ranging from zero to number_board
   thickness: 0.012
-  square_size: 0.02454545 # size of each square of the board in cm/mm/whatever you want
+  square_size: 0.024 # size of each square of the board in cm/mm/whatever you want
   aruco_n: 6
 
 detector:
