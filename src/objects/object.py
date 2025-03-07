@@ -49,7 +49,7 @@ class Object(ABC):
         pass
 
     @abstractmethod
-    def clone(self, same_pose: bool, same_relative_poses: bool):
+    def clone(self, same_pose: bool, same_relative_poses: bool) -> 'Object':
         pass
 
     @abstractmethod

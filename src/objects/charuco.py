@@ -22,16 +22,17 @@ def first_higher(lst, value):
 class CharucoObject(Object):
 
     @classmethod
-    def init_base(cls, cfg: DictConfig):
+    def init_base(cls, cfg: DictConfig, device="cpu"):
         n = cfg.boards.n_boards
-        p = CharucoObject.__get_board_params(cfg)
+        p = CharucoObject.__get_board_params(cfg, device=device)
         return cls(
             cfg=cfg,
             params=p,
-            pose=Pose(euler=eul(torch.zeros(3, dtype=torch.float32))),
+            pose=Pose(position=torch.zeros(3, dtype=torch.float32), euler=eul(torch.zeros(3, dtype=torch.float32))),
             relative_poses=[
-                Pose(euler=eul(torch.zeros(3, dtype=torch.float32))) for _ in range(n)
+                Pose(position=torch.zeros(3, dtype=torch.float32), euler=eul(torch.zeros(3, dtype=torch.float32))) for _ in range(n)
             ],
+            device = device
         )
 
     def __init__(
@@ -54,11 +55,11 @@ class CharucoObject(Object):
         for p in self.relative_poses:
             p.to(device)
         self.params.points_list = [p.to(device) for p in self.params.points_list]
-        self.params.ids_list = self.params.ids_list.to(device)
+        self.params.ids_list = [i.to(device) for i in self.params.ids_list]
         return self
 
     @staticmethod
-    def __get_board_params(cfg):
+    def __get_board_params(cfg, device="cpu"):
         params = SimpleNamespace(**cfg.boards)
         params.aspect_ratio = params.number_x_square / params.number_y_square
         params.length_square_real = params.square_size
@@ -79,14 +80,13 @@ class CharucoObject(Object):
         params.length_y = params.number_y_square * params.length_square_real
         CharucoObject.__put_board_cv2(params)
         params.points_list = [
-            CharucoObject.__get_grid(params) for _ in range(params.n_boards)
+            CharucoObject.__get_grid(params, device) for _ in range(params.n_boards)
         ]
-        params.ids_list = torch.cat(
-            [
-                torch.arange(i * params.n_corners, (i + 1) * params.n_corners)
+        params.ids_list = [
+                torch.arange(i * params.n_corners, (i + 1) * params.n_corners, device=device)
                 for i in range(params.n_boards)
             ]
-        )
+        
         params.detector_params = cfg.detector
         return params
 
@@ -118,7 +118,7 @@ class CharucoObject(Object):
             relative_poses = self.relative_poses
         else:
             relative_poses = [pose.clone() for pose in self.relative_poses]
-        return CharucoObject(self.cfg, self.params, pose, relative_poses)
+        return CharucoObject(self.cfg, self.params, pose, relative_poses, device=self.device)
 
     def generate_charuco_images(self) -> List[Image]:
         images = []
@@ -142,7 +142,7 @@ class CharucoObject(Object):
         return image
 
     @staticmethod
-    def __get_grid(params) -> torch.Tensor:
+    def __get_grid(params, device = "cpu") -> torch.Tensor:
         grid = torch.tensor(
             [
                 [
@@ -163,14 +163,14 @@ class CharucoObject(Object):
         grid[..., 0] -= grid[-1, 0] / 2
         grid[..., 1] -= grid[-1, 1] / 2
         grid[..., 1] *= -1
-        return grid
+        return grid.to(device)
 
     def points(self) -> List[torch.Tensor]:
         points_list = []
         for board_id, points in enumerate(self.params.points_list):
             R1 = self.pose.rotation()
-            R2 = self.relative_poses[board_id].rotation()
             t1 = self.pose.location()
+            R2 = self.relative_poses[board_id].rotation()
             t2 = self.relative_poses[board_id].location()
             R = R2 @ R1  # Combine rotations
             t = R2 @ t1 + t2  # Combine translations
@@ -230,7 +230,7 @@ class CharucoDetector(ObjectDetector):
                     return True
         return False
 
-    def detect_charuco_corners(self, image: Image) -> Dict[str, List[torch.Tensor]]:
+    def detect_charuco_corners(self, image: Image, device:str = "cpu") -> Dict[str, List[torch.Tensor]]:
 
         img = image.uint8().numpy()
 
@@ -275,12 +275,12 @@ class CharucoDetector(ObjectDetector):
                 charuco_ids = np.empty([0,1])
 
 
-            charuco_corners_all.append(torch.from_numpy(charuco_corners))
+            charuco_corners_all.append(torch.tensor(charuco_corners, device=device))
             charuco_corners_ids.append(
-                torch.from_numpy(charuco_ids + i * self.params.n_corners)
+                torch.tensor(charuco_ids + i * self.params.n_corners, device=device)
             )
-            charuco_markers_all.append(torch.from_numpy(valid_corners))
-            charuco_markers_ids.append(torch.from_numpy(valid_ids))
+            charuco_markers_all.append(torch.tensor(valid_corners, device=device ))
+            charuco_markers_ids.append(torch.tensor(valid_ids, device=device))
 
 
         return {
@@ -314,11 +314,11 @@ class CharucoDetector(ObjectDetector):
                 )
         return Image(img)
 
-    def draw_features(self, images) -> List[Image]:
+    def draw_features(self, images: List[Image]) -> List[Image]:
         return [self.draw_charuco(i, corners=True, markers=False) for i in images]
 
-    def detect_features(self, images) -> List[Features]:
-        features = [self.detect_charuco_corners(i) for i in images]
+    def detect_features(self, images: List[Image], device = "cpu") -> List[Features]:
+        features = [self.detect_charuco_corners(i, device=device) for i in images]
         return [
             CharucoFeatures(corners=f["charuco_corners"], ids=f["charuco_ids"])
             for f in features
@@ -327,9 +327,10 @@ class CharucoDetector(ObjectDetector):
 
 class CharucoFeatures(Features):
 
-    def __init__(self, corners: List[torch.Tensor], ids: List[torch.Tensor]):
+    def __init__(self, corners: List[torch.Tensor], ids: List[torch.Tensor], device: str) -> None:
         self.charuco_corners = corners
         self.charuco_ids = ids
+        self.device = device
 
     @property
     def points(self) -> List[torch.Tensor]:
@@ -338,3 +339,8 @@ class CharucoFeatures(Features):
     @property
     def ids(self) -> List[torch.Tensor]:
         return self.charuco_ids
+
+    def to(self, device):
+        self.dedvice = device
+        self.charuco_corners = [c.to(device) for c in self.charuco_corners]
+        self.charuco_ids = [i.to(device) for i in self.charuco_ids]

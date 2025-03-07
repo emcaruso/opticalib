@@ -15,10 +15,12 @@ hydra:
 
 paths:
   src_dir: "${oc.env:ROOT}/src"
-  collection_dir: "${oc.env:ROOT}/results/collection"
-  charuco_images_dir: "${oc.env:ROOT}/results/charuco_images"
-  calib_results_dir: "${oc.env:ROOT}/results/calib_results"
-  log_file: "${oc.env:ROOT}/results/log.txt"
+  results_dir: "${oc.env:ROOT}/results"
+  collection_dir: "${paths.results_dir}/collection"
+  charuco_images_dir: "${paths.results_dir}/charuco_images"
+  calib_results_dir: "${paths.results_dir}/calib_results"
+  features_file: "${paths.collection_dir}/features.npy"
+  log_file: "${paths.results_dir}/log.txt"
 
 collect:
   do: True
@@ -28,15 +30,18 @@ collect:
       - "manual"
       - "automatic"
   in_ram: False
+  lights:
+    channels: [8, 9, 10]
+    intensity: 1.0
 
 calibration:
   do: True
-  device: cpu # cpu or gpu
+  device: cpu # cpu or cuda
   # in_ram: True
-  iterations: 1000
-  show_realtime: False
-  objects_pose_fix:
+  iterations: 10000
+  reg_weight: 10000
+  objects_pose_opt:
     position: [1, 0, 0]
-    eul: [0, 0, 1]
+    eul: [0, 0, 0]
 
 get_charuco_images: True

@@ -32,7 +32,7 @@ color_space:
     - Off
 
 crop:
-  do: True
+  do: False
   slot: 1
 
 timeout: 5000
