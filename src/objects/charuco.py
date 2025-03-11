@@ -9,6 +9,7 @@ from typing import List, Dict
 from omegaconf import DictConfig
 from objects.object import Object, Features, ObjectDetector
 from utils_ema.charuco import Charuco
+from utils_ema.camera_cv import Camera_cv
 from utils_ema.geometry_pose import Pose
 from utils_ema.geometry_euler import eul
 from utils_ema.image import Image
@@ -18,6 +19,27 @@ from utils_ema.blender_utils import put_plane_in_scene, set_object_pose, set_obj
 def first_higher(lst, value):
     return next((x for x in lst if x > value), None)
 
+
+
+class CharucoFeatures(Features):
+
+    def __init__(self, corners: List[torch.Tensor], ids: List[torch.Tensor], device: str) -> None:
+        self.charuco_corners = corners
+        self.charuco_ids = ids
+        self.device = device
+
+    @property
+    def points(self) -> List[torch.Tensor]:
+        return self.charuco_corners
+
+    @property
+    def ids(self) -> List[torch.Tensor]:
+        return self.charuco_ids
+
+    def to(self, device):
+        self.dedvice = device
+        self.charuco_corners = [c.to(device) for c in self.charuco_corners]
+        self.charuco_ids = [i.to(device) for i in self.charuco_ids]
 
 class CharucoObject(Object):
 
@@ -168,15 +190,19 @@ class CharucoObject(Object):
     def points(self) -> List[torch.Tensor]:
         points_list = []
         for board_id, points in enumerate(self.params.points_list):
-            R1 = self.pose.rotation()
-            t1 = self.pose.location()
-            R2 = self.relative_poses[board_id].rotation()
-            t2 = self.relative_poses[board_id].location()
-            R = R2 @ R1  # Combine rotations
-            t = R2 @ t1 + t2  # Combine translations
-            p = points @ R.T + t
+            if self.relative_poses[board_id] is None:
+                p=None
+            else:
+                R1 = self.pose.rotation()
+                t1 = self.pose.location()
+                R2 = self.relative_poses[board_id].rotation()
+                t2 = self.relative_poses[board_id].location()
+                R = R2 @ R1  # Combine rotations
+                t = R2 @ t1 + t2  # Combine translations
+                p = points @ R.transpose(-2, -1) + t
             points_list.append(p)
         return points_list
+
 
     def ids(self) -> List[torch.Tensor]:
         return self.params.ids_list
@@ -323,24 +349,3 @@ class CharucoDetector(ObjectDetector):
             CharucoFeatures(corners=f["charuco_corners"], ids=f["charuco_ids"])
             for f in features
         ]
-
-
-class CharucoFeatures(Features):
-
-    def __init__(self, corners: List[torch.Tensor], ids: List[torch.Tensor], device: str) -> None:
-        self.charuco_corners = corners
-        self.charuco_ids = ids
-        self.device = device
-
-    @property
-    def points(self) -> List[torch.Tensor]:
-        return self.charuco_corners
-
-    @property
-    def ids(self) -> List[torch.Tensor]:
-        return self.charuco_ids
-
-    def to(self, device):
-        self.dedvice = device
-        self.charuco_corners = [c.to(device) for c in self.charuco_corners]
-        self.charuco_ids = [i.to(device) for i in self.charuco_ids]

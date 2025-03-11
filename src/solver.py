@@ -32,8 +32,9 @@ class Solver:
 
         # calibrate scene
         self.logger.info("Calibrating...")
-        optimizer = Optimizer(cfg=self.cfg, scene=self.scene, logger=self.logger)
-        optimizer.run()
+        # optimizer = Optimizer(cfg=self.cfg, scene=self.scene, logger=self.logger,
+        #                     intr_K=True, intr_D=True, extr=False, obj_rel=True, obj_pose=False, n_features_min=scene.n_features_min)
+        # optimizer.run()
 
     def save(self) -> None:
         # Save calibration results on blender

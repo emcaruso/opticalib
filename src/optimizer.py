@@ -1,4 +1,5 @@
 import torch
+import sys
 import subprocess
 import numpy as np
 
@@ -18,7 +19,8 @@ from scene import Scene
 class Optimizer:
     def __init__(
         self, cfg: DictConfig, scene: Scene, logger: Logger, cam_id: Optional[int] = None,
-        intr_K: bool = True, intr_D: bool = True, extr: bool = True, obj_rel: bool = True, obj_pose: bool = True
+        intr_K: bool = True, intr_D: bool = True, extr: bool = True, obj_rel: bool = True, obj_pose: bool = True,
+        n_features_min: int = 0
     ) -> None:
         self.logger: Logger = logger
         self.cfg: DictConfig = cfg
@@ -30,6 +32,8 @@ class Optimizer:
         self.extr = extr
         self.obj_rel = obj_rel
         self.obj_pose = obj_pose
+
+        self.n_features_min = n_features_min
 
     def __get_camera_ids(self, cam_id: Optional[int]) -> List[int]:
         if cam_id is None:
@@ -44,12 +48,13 @@ class Optimizer:
 
         # for each time instant
         loss_total = []
-        for time_id in range(self.scene.time_instants)[-1:]:
+        for time_id in range(self.scene.time_instants)[-4:]:
         # for time_id in range(self.scene.time_instants):
             x, y = self.__get_xy(time_id)
-            if len(x) > 100:
+            if len(x) > 0:
                 loss = self.__loss(x, y)
                 loss_total.append( loss )
+
         loss = torch.mean(torch.stack(loss_total))
         loss.backward()
 
@@ -82,7 +87,6 @@ class Optimizer:
         plotter.plot_points(x)
         plotter.plot_points(y)
         plotter.show()
-        import ipdb; ipdb.set_trace()
         
         
     def __loss(self, f_hat: torch.Tensor, f_gt: torch.Tensor) -> torch.Tensor:
@@ -115,16 +119,22 @@ class Optimizer:
             cam.intr.update_intrinsics()
             for board_id in range(len(ids_list_gt)):
                 ids_gt = ids_list_gt[board_id]
+                if len(ids_gt) < self.n_features_min:
+                    continue
                 ids_hat = ids_list_hat[board_id]
                 points_gt = points_list_gt[board_id]
                 points3D_hat = points3D_list_hat[board_id]
                 idxs = torch.where(torch.isin(ids_hat, ids_gt.squeeze(-1)))[0]
                 points3D_hat = points3D_hat[idxs]
                 points2D_hat_undistort = cam.project_points(points3D_hat, longtens=False, und=False)
-                points_hat = cam.distort(points2D_hat_undistort)
-                # points_hat = points2D_hat_undistort 
+                # points_hat = cam.distort(points2D_hat_undistort)
+                points_hat = points2D_hat_undistort 
                 points_gt_list.append(points_gt)
                 points_hat_list.append(points_hat)
+
+        if len(points_hat_list) == 0:
+            return torch.tensor(points_hat_list), torch.tensor(points_hat_list)
+
         return torch.cat(points_hat_list, dim=0), torch.cat(points_gt_list, dim=0).squeeze(1)
 
 

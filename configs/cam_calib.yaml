@@ -38,8 +38,10 @@ calibration:
   do: True
   device: cpu # cpu or cuda
   # in_ram: True
-  iterations: 10000
-  reg_weight: 10000
+  iterations: 0
+  reg_weight: 100
+  percentage_points_min: 0.5
+  focal_length_prior: 0.016 # focal length prior in meters
   objects_pose_opt:
     position: [1, 0, 0]
     eul: [0, 0, 0]
