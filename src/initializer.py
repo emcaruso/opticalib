@@ -9,7 +9,6 @@ from pathlib import Path
 import torch
 import numpy as np
 from tqdm import tqdm
-import itertools
 from optimizer import Optimizer
 from utils_ema.camera_cv import Camera_cv, Intrinsics
 from utils_ema.geometry_pose import Pose
@@ -31,9 +30,20 @@ class Initializer():
 
         # init board relative poses + intrinsics (fixed focal length)
         self.__precalibration(scene)
+        self.logger.info("Pre-calibrated intrinsics (fixed focal length), and relative poses")
 
         # init cameras extrinsics
         self.__init_cameras_extrinsics(scene)
+        self.logger.info("Initialize camera extrinsics")
+
+        # optimize to get object poses
+        self.logger.info("Pre-calibrate object poses")
+        optimizer = Optimizer(cfg=self.cfg.calibration.precalib_params, scene=scene, logger=self.logger,
+                            intr_K=False, intr_D=False, extr=False, obj_rel=False, obj_pose=True,
+                            n_features_min=scene.n_features_min,
+                             )
+        optimizer.run()
+        
         
         return scene
 
@@ -45,10 +55,13 @@ class Initializer():
         return scene
 
     def __precalibration(self, scene: Scene):
+        '''
+        get object relative poses + camera intrinsics
+        '''
 
         relative_poses = {}
 
-        points_3D, points_2D, infos = scene.get_3D_2D_points_foreach_cam(filter_by_n_features_min = True, numpy=True)
+        points_3D, points_2D, infos = scene.get_3D_2D_points_foreach_cam(filter_boards_by_n_features_min = True, numpy=True)
 
         for cam_id, p3D, p2D, info in zip(range(len(points_3D)), points_3D, points_2D, infos):
             
@@ -61,10 +74,14 @@ class Initializer():
             K = cam.intr.K_pix.cpu().numpy()
             D = cam.intr.D_params.cpu().numpy()
             flags = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_FIX_FOCAL_LENGTH
+            # flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_FOCAL_LENGTH | cv2.CALIB_FIX_PRINCIPAL_POINT
+            # flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
+            #         cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH)
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS
             imageSize = tuple(cam.intr.resolution.numpy())
+            # res = cv2.calibrateCamera( objectPoints=p3D, imagePoints=p2D, imageSize=imageSize, cameraMatrix=None, distCoeffs=None)
             res = cv2.calibrateCamera( objectPoints=p3D, imagePoints=p2D, imageSize=imageSize, cameraMatrix=K, distCoeffs=D, flags=flags)
-
+            self.logger.info(f"Precalib error for camera {cam_id}: {res[0]}")
 
             K_params = torch.FloatTensor([res[1][0,0], res[1][1,1], res[1][0,2], res[1][1,2]])
             K_params *= cam.intr.unit_pixel_ratio()
@@ -80,17 +97,6 @@ class Initializer():
                 board_id = info["board_id"]
                 scene.objects[time_id].relative_poses[board_id] = pose
 
-                # print(info)
-                # points = scene.objects[time_id].points()[board_id]
-                # proj_points = cam.project_points(points, und=False)
-                # proj_points = cam.distort(proj_points)
-                # proj_points = torch.cat((proj_points, torch.zeros([proj_points.shape[0], 1], dtype=torch.float32)), dim=1)
-                # plotter.reset()
-                # plotter.plot_points(proj_points)
-                # # plotter.plot_points(proj_points_cv2)
-                # plotter.plot_points(torch.cat((torch.tensor(p2D[i]), torch.zeros([torch.tensor(p2D[i]).shape[0], 1], dtype=torch.float32)), dim=1))
-                # plotter.show()
-                #
             for time_id in range(scene.time_instants):
 
                 # reference pose
@@ -109,92 +115,116 @@ class Initializer():
                     if board_id not in relative_poses.keys():
                         relative_poses[board_id] = []
 
-                    relative_pose = pose_rel - pose_ref
+                    relative_pose = pose_ref - pose_rel
                     relative_poses[board_id] += [relative_pose]
 
 
         # reinit objects with shared relative pose
         scene.objects = self.__get_objects(scene.features_gt, same_relative_poses=True)
         for board_id in relative_poses.keys():
-            average_pose = Pose.average_poses(relative_poses[board_id])
+            r = relative_poses[board_id]
+            average_pose = Pose.average_poses(r)
+
             for obj in scene.objects:
                 obj.relative_poses[board_id] = average_pose
 
+
         
     def __init_cameras_extrinsics(self, scene: Scene):
-
-        import ipdb; ipdb.set_trace()
-
-
-        points_3D, points_2D, infos = scene.get_3D_2D_points_foreach_cam(filter_by_n_features_min = True, numpy=True)
-
-        # collect valid time ids
-        valid_time_ids = []
+        
+        # get first valid time_id
+        best_valid_boards = None
+        best_time_id = None
+        best_score = 0
         for time_id in range(scene.time_instants):
-            comb = itertools.product(range(scene.n_cameras), range(scene.objects[0].params.n_boards))
-            for cam_id, board_id in comb:
-                l = len(scene.features_gt[time_id][cam_id].points[board_id])
-                if l < scene.n_features_min:
-                    continue
-                valid_time_ids.append(time_id)
-
-                    
-        points = torch.cat(scene.objects[0].points(), dim=0).cpu().numpy()
-
-        import ipdb; ipdb.set_trace()
-        for board_id in range(1,scene.objects[0].params.n_boards):
-
-            # solve pnp
+            valid_cams = True
+            valid_boards = []
             for cam_id in range(scene.n_cameras):
+                valid_boards.append([])
+                features = scene.features_gt[time_id][cam_id]
+                # if at least one board has enough points in the image, camera can be properly estimated
+                for board_id in range(scene.objects[0].params.n_boards):
+                    if len(features.points[board_id]) >= scene.n_features_min:
+                        valid_boards[cam_id].append(board_id)
+                if valid_boards[cam_id] == []:
+                    valid_cams = False
+                    break
 
-                res, rvec, tvec = cv2.solvePnP(points, points_np, K, D)
+            if not valid_cams:
+                continue
 
+            score = sum([ len(valid_boards[cam_id]) for cam_id in range(scene.n_cameras)])
+            if score > best_score:
+                best_score = score
+                best_time_id = time_id
+                best_valid_boards = valid_boards
 
-        pass
+        if best_time_id is None:
+            raise Exception("No valid time_id found to initialize cameras extrinsics")
 
-    def __intrinsics_init(self, scene: Scene):
+        # init cameras
+        # print(best_time_id, best_score)
+        self.logger.info(f"Best time_id found to initialize cameras extrinsics: {best_time_id}, n of valid boards: {best_score}")
+        points = scene.objects[best_time_id].points()
+        ids = scene.objects[best_time_id].ids()
 
-        # precalibration
-        self.__precalibration(scene)
+        for cam_id, valid_boards_list in enumerate(best_valid_boards):
+            cam = scene.cameras[cam_id]
+            ratio = cam.intr.pixel_unit_ratio().item()
 
-        # for cam_id in range(len(scene.features_gt[0])):
-        #     # align boards with cameras
-        #     optim = Optimizer(cfg=self.cfg, scene=scene, logger=self.logger, cam_id=cam_id,
-        #                         intr_K=False, intr_D=False, extr=False, obj_rel=True, obj_pose=False, n_features_min=scene.n_features_min)
-        #                         # intr_K=False, intr_D=False, extr=False, obj_rel=True, obj_pose=False)
-        #     optim.run()
-        #
-        #     import ipdb; ipdb.set_trace()
-        
+            p2D = []
+            p3D = []
 
-        #     self.logger.info(f"Calibrating intrinsics of camera {cam_id}")
-        #
-        #     # init relative poses
-        #     for board_id in range(scene.objects[0].params.n_boards):
-        #
-        #         for time_id in range(len(self.features_gt)):
-        #
-        #             board = scene.objects[time_id]
-        #             features = self.features_gt[time_id][cam_id]
-        #             if len(features.points[board_id]) >= self.n_features_min:
-        #
-        #                 pose = board.get_pose_from_PnP(features, board_id, self.cameras[cam_id])
-        #                 scene.objects[time_id].relative_poses[board_id] = pose
-        #
-                
+            for board_id in valid_boards_list:
+                ids2D = scene.features_gt[best_time_id][cam_id].ids[board_id]
+                p3D_ = points[board_id].cpu().numpy() * ratio
+                ids3D = ids[board_id]
+                idxs = torch.where(torch.isin(ids3D, ids2D))[0]
+                p3D.append(p3D_[idxs])
+                p2D.append(scene.features_gt[best_time_id][cam_id].points[board_id].cpu().numpy())
+                res, rvec, tvec = cv2.solvePnP(p3D[-1], p2D[-1], cam.intr.K_pix.cpu().numpy(), cam.intr.D_params.cpu().numpy())
+
+            p2D = np.concatenate(p2D, axis=0)
+            p3D = np.concatenate(p3D, axis=0)
+
+            res, rvec, tvec = cv2.solvePnP(p3D, p2D, cam.intr.K_pix.cpu().numpy(), cam.intr.D_params.cpu().numpy())
+            _, rvec_list, tvec_list, repr_list = cv2.solvePnPGeneric(p3D, p2D, cam.intr.K_pix.cpu().numpy(), cam.intr.D_params.cpu().numpy())
+            idx_best = [np.array_equal(a, tvec) for a in tvec_list].index(True)
+
+            rvec = rvec_list[idx_best]
+            tvec = tvec_list[idx_best]
+            repr = repr_list[idx_best].item()
+            self.logger.info(f"Reprojection error during extrinsics initialization for camera {cam_id}: {repr}")
+            if res is False:
+                raise Exception("solvePnP failed in init camera extrinsics")
+            tvec *= 1/ratio
+
+            cam_pose = Pose.cvvecs2pose(rvec, tvec)
+            cam_pose.invert()
+            scene.cameras[cam_id].pose = cam_pose
+
+            # # reproject p3D on camera and check the distance with p2D
+            # pa = torch.tensor(p3D * (1/ratio))
+            # p2D_hat = cam.project_points(pa, longtens=False, und=False)
+            # dist = torch.norm(torch.tensor(p2D).squeeze(1) - p2D_hat, dim=1).mean()
+            #
+            #
+            # cam_poses.append(cam_pose)
+
+            # for p in cam_poses:
+            #     print(p.position)
             
+            # cam_pose = Pose.average_poses(cam_poses)
+
+        # plot for test purposes
+        if self.cfg.calibration.test.init_show:
+            for cam in scene.cameras:
+                plotter.plot_pose(cam.pose)
+            for p in points:
+                plotter.plot_points(p)
+            plotter.show()
 
 
-        # # for obj in scene.objects:
-        # #     obj.pose = Pose(position=torch.tensor([0,0,-1], dtype=torch.float32), euler=eul(torch.zeros(3, dtype=torch.float32)))
-        #
-        
-        # import ipdb; ipdb.set_trace()
-        #
-        # # align boards + intrinsics
-        # optim = Optimizer(cfg=self.cfg, scene=scene, logger=self.logger, cam_id=cam_id,
-        #                 intr_K=True, intr_D=True, extr=False, obj_rel=True, obj_pose=True)
-        # optim.run()
         
 
     def __get_cameras(self, features_gt) -> List[Camera_cv]:
@@ -205,11 +235,14 @@ class Initializer():
             # get resolution
             resolution = CollectorLoader.resolutions[i]
             info = CollectorLoader.load_info(self.cfg.paths.collection_dir)
-            sensor_size = torch.FloatTensor(info[f"cam_{i:03d}"].SensorSize)*1e-3
+            pixel_size = torch.FloatTensor(info[f"cam_{i:03d}"].PixelSizeMicrometers)*1e-6
+            sensor_size = resolution*pixel_size
+            crop_offset = torch.FloatTensor(info[f"cam_{i:03d}"]["crop_offset"])
+            resolution_native = torch.FloatTensor(info[f"cam_{i:03d}"]["resolution_native"])
 
             # prior intrinsics
             f = self.cfg.calibration.focal_length_prior
-            c = sensor_size/2
+            c = (resolution_native/2 - crop_offset)*pixel_size
             K=torch.FloatTensor([[f, 0, c[0]], [0, f, c[1]], [0, 0, 1]])
             D = torch.zeros(5)
 
@@ -237,6 +270,7 @@ class Initializer():
                 features.append(self.detector.detect_features(images, device=self.cfg.calibration.device))
             # save custom object with pickle
             np.save(self.cfg.paths.features_file, features, allow_pickle=True)
+
 
         else:
             features = np.load(self.cfg.paths.features_file, allow_pickle=True)

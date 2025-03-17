@@ -1,4 +1,5 @@
 import torch
+import cv2
 import sys
 import subprocess
 import numpy as np
@@ -10,6 +11,7 @@ from logging import Logger
 from omegaconf import DictConfig
 from pathlib import Path
 from hydra.utils import instantiate
+from utils_ema.charuco import Image
 from objects.object import Object, Features, ObjectDetector
 from blender_saver import blender_save
 from utils_ema.plot import plotter
@@ -18,79 +20,101 @@ from scene import Scene
 
 class Optimizer:
     def __init__(
-        self, cfg: DictConfig, scene: Scene, logger: Logger, cam_id: Optional[int] = None,
+        self, cfg: DictConfig, scene: Scene, logger: Logger,
         intr_K: bool = True, intr_D: bool = True, extr: bool = True, obj_rel: bool = True, obj_pose: bool = True,
-        n_features_min: int = 0
+        world_rot: bool = False, n_features_min: int = 0,
     ) -> None:
         self.logger: Logger = logger
         self.cfg: DictConfig = cfg
         self.scene = scene
-        self.camera_ids = self.__get_camera_ids(cam_id)
 
         self.intr_K = intr_K
         self.intr_D = intr_D
         self.extr = extr
         self.obj_rel = obj_rel
         self.obj_pose = obj_pose
+        self.world_rot = world_rot
 
         self.n_features_min = n_features_min
 
-    def __get_camera_ids(self, cam_id: Optional[int]) -> List[int]:
-        if cam_id is None:
-            return [i for i in range(len(self.scene.cameras))]
+    def __early_stopping(self, loss: torch.Tensor) -> bool:
+        if not hasattr(self, "loss"):
+            self.loss = loss
+            return False
         else:
-            return [cam_id]
-
-    def closure(self) -> None:
-        self.optimizer.zero_grad()
-        self.__update_params()
-        self.scheduler.step()
-
-        # for each time instant
-        loss_total = []
-        for time_id in range(self.scene.time_instants)[-4:]:
-        # for time_id in range(self.scene.time_instants):
-            x, y = self.__get_xy(time_id)
-            if len(x) > 0:
-                loss = self.__loss(x, y)
-                loss_total.append( loss )
-
-        loss = torch.mean(torch.stack(loss_total))
-        loss.backward()
-
-        # self.__regularization_step()
-
-        self.__filter_gradients(self.params, self.params_mask)
-
-        # optimizer.step()
-        # print(self.scene.cameras[0].intr.K_params)
-        # print(self.scene.objects[-1].relative_poses[0].position)
-        # print(self.scene.objects[-1].relative_poses[0].euler.e)
-        # print(scheduler.get_last_lr())
-        
-        return loss
+            if torch.abs(loss-self.loss) < self.cfg.early_stopping_diff:
+                return True
+            else: 
+                self.loss = loss
+                return False
 
     def run(self) -> None:
         self.params, self.params_mask = self.__collect_parameters()
 
-        self.optimizer = instantiate(self.cfg.optimizer, params=self.params)
-        self.scheduler = instantiate(self.cfg.scheduler, optimizer=self.optimizer)
-        progress_bar = tqdm(range(self.cfg.calibration.iterations), desc="Iteration: ")
-        for _ in progress_bar:
-            loss = self.optimizer.step(self.closure)
-            progress_bar.set_postfix({"loss": f"{loss:9.3f}"})
+        self.optimizer = instantiate(self.cfg.params.optimizer, params=self.params, lr = self.cfg.lr)
+        self.scheduler = instantiate(self.cfg.params.scheduler, optimizer=self.optimizer)
+        progress_bar = tqdm(range(self.cfg.iterations), desc="Iteration: ")
 
 
-        x, y = self.__get_xy(-1)
-        x = torch.cat([x,torch.zeros([x.shape[0],1])], dim=1)
-        y = torch.cat([y,torch.zeros([y.shape[0],1])], dim=1)
-        plotter.plot_points(x)
-        plotter.plot_points(y)
-        plotter.show()
-        
-        
+        for it in progress_bar:
+
+            self.__visualize(it)
+            self.__update_params()
+
+            # for each time instant
+            loss_total = []
+            dist_total = []
+
+            # training loop
+            # for time_id in range(self.scene.time_instants)[0:8]:
+            for time_id in range(self.scene.time_instants):
+                x, y = self.scene.get_xy(time_id, concatenate=True)
+                if len(x) > 0:
+                    loss = self.__loss(x, y)
+                    dist = self.__mean_distance(x, y)
+                    loss_total.append( loss )
+                    dist_total.append( dist )
+            dist_average = torch.mean(torch.stack(dist_total))
+            loss_average = torch.mean(torch.stack(loss_total))
+            loss_average.backward()
+            print(self.scene.cameras[0].pose.euler.e)
+            
+            # update
+            self.__regularization_step()
+            self.__update_gradients(self.params, self.params_mask)
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            
+            # update scheduler and early stopping
+            self.scheduler.step()
+            if self.__early_stopping(loss_average):
+                break
+            progress_bar.set_postfix({"average distance": f"{dist_average:9.3f}",
+                                      "average loss": f"{loss_average:9.3f}"})
+
+            # for visualization purposes
+        if self.cfg.test.calib_show_realtime and self.cfg.iterations > 0:
+            self.__visualize(self.cfg.iterations)
+
+    def __visualize(self, it):
+        if self.cfg.test.calib_show_realtime and it % self.cfg.test.calib_show_rate == 0:
+            images = []
+            for cam_id in range(self.scene.n_cameras):
+                x = torch.cat([ self.scene.get_xy(time_id)[0][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
+                y = torch.cat([ self.scene.get_xy(time_id)[1][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
+                r = self.scene.cameras[0].intr.resolution
+                image = Image(torch.ones([r[0], r[1], 3]))
+                image.draw_circles(x, color=(0,0,255), radius = 7, thickness=4)
+                image.draw_circles(y, color=(255,0,0), radius = 7)
+                image.draw_lines(x, y, color=(0,255,0))
+                images.append(image)
+            Image.show_multiple_images(images, wk=1)
+
+    def __mean_distance(self, f_hat: torch.Tensor, f_gt: torch.Tensor) -> torch.Tensor:
+        return torch.mean(torch.norm(f_hat-f_gt, dim=1))
+
     def __loss(self, f_hat: torch.Tensor, f_gt: torch.Tensor) -> torch.Tensor:
-        criterion = instantiate(self.cfg.loss)
+        criterion = instantiate(self.cfg.params.loss)
         return criterion(f_hat, f_gt)
 
     def __regularization_step(self) -> torch.Tensor:
@@ -99,47 +123,47 @@ class Optimizer:
             for cam in self.scene.cameras:
                 loss_reg_list.append(torch.abs(cam.intr.K_params[0] - cam.intr.K_params[1]))
                 loss_reg_list.append(torch.abs(cam.intr.K_params[2] - cam.intr.K_params[3]))
-            loss_reg = self.cfg.calibration.reg_weight * torch.stack(loss_reg_list).sum()
+            loss_reg = self.cfg.reg_weight * torch.stack(loss_reg_list).sum()
             loss_reg.backward()
 
 
-    def __get_xy(self, time_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        points_gt_list = []
-        points_hat_list = []
-        obj = self.scene.objects[time_id]
-        ids_list_hat = obj.ids()
-        points3D_list_hat = obj.points()
-        features_list = self.scene.features_gt[time_id]
-        for cam_id in self.camera_ids:
-            f = features_list[cam_id]
-            ids_list_gt = f.ids
-            points_list_gt = f.points
-            cam = self.scene.cameras[cam_id] 
-            cam.intr.update_intrinsics()
-            for board_id in range(len(ids_list_gt)):
-                ids_gt = ids_list_gt[board_id]
-                if len(ids_gt) < self.n_features_min:
-                    continue
-                ids_hat = ids_list_hat[board_id]
-                points_gt = points_list_gt[board_id]
-                points3D_hat = points3D_list_hat[board_id]
-                idxs = torch.where(torch.isin(ids_hat, ids_gt.squeeze(-1)))[0]
-                points3D_hat = points3D_hat[idxs]
-                points2D_hat_undistort = cam.project_points(points3D_hat, longtens=False, und=False)
-                # points_hat = cam.distort(points2D_hat_undistort)
-                points_hat = points2D_hat_undistort 
-                points_gt_list.append(points_gt)
-                points_hat_list.append(points_hat)
-
-        if len(points_hat_list) == 0:
-            return torch.tensor(points_hat_list), torch.tensor(points_hat_list)
-
-        return torch.cat(points_hat_list, dim=0), torch.cat(points_gt_list, dim=0).squeeze(1)
+    # def get_xy(self, time_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    #
+    #     points_gt_list = []
+    #     points_hat_list = []
+    #     obj = self.scene.objects[time_id]
+    #     ids_list_hat = obj.ids()
+    #     points3D_list_hat = obj.points()
+    #     features_list = self.scene.features_gt[time_id]
+    #     for cam_id in range(self.scene.n_cameras):
+    #         f = features_list[cam_id]
+    #         ids_list_gt = f.ids
+    #         points_list_gt = f.points
+    #         cam = self.scene.cameras[cam_id] 
+    #         cam.intr.update_intrinsics()
+    #         for board_id in range(len(ids_list_gt)):
+    #             ids_gt = ids_list_gt[board_id]
+    #             if len(ids_gt) < self.n_features_min:
+    #                 continue
+    #             ids_hat = ids_list_hat[board_id]
+    #             points_gt = points_list_gt[board_id]
+    #             points3D_hat = points3D_list_hat[board_id]
+    #             idxs = torch.where(torch.isin(ids_hat, ids_gt.squeeze(-1)))[0]
+    #             points3D_hat = points3D_hat[idxs]
+    #             points2D_hat_undistort = cam.project_points(points3D_hat, longtens=False, und=False)
+    #             points_hat = cam.distort(points2D_hat_undistort)
+    #             # points_hat = points2D_hat_undistort 
+    #             points_gt_list.append(points_gt)
+    #             points_hat_list.append(points_hat)
+    #
+    #     if len(points_hat_list) == 0:
+    #         return torch.tensor(points_hat_list), torch.tensor(points_hat_list)
+    #
+    #     return torch.cat(points_hat_list, dim=0), torch.cat(points_gt_list, dim=0).squeeze(1)
 
 
     def __update_params(self) -> None:
-        for cam_id in self.camera_ids:
+        for cam_id in range(self.scene.n_cameras):
             cam = self.scene.cameras[cam_id]
             cam.intr.K_params.data = torch.abs(cam.intr.K_params).data
 
@@ -156,8 +180,12 @@ class Optimizer:
                 pose = obj.pose
                 params.append(pose.euler.e)  # euler
                 params.append(pose.position)  # position
-                masks.append(torch.tensor(self.cfg.calibration.objects_pose_opt.eul, device=self.cfg.calibration.device))
-                masks.append(torch.tensor(self.cfg.calibration.objects_pose_opt.position, device=self.cfg.calibration.device))
+                if "objects_pose_opt" in self.cfg.keys():
+                    masks.append(torch.tensor(self.cfg.objects_pose_opt.eul, device=self.cfg.device))
+                    masks.append(torch.tensor(self.cfg.objects_pose_opt.position, device=self.cfg.device))
+                else:
+                    masks.append(torch.ones(3, device=self.cfg.device))
+                    masks.append(torch.ones(3, device=self.cfg.device))
         
         # collect object relative
         if self.obj_rel:
@@ -165,40 +193,47 @@ class Optimizer:
                 for r in o.relative_poses:
                     if not any(r.euler.e is t for t in params):
                         params.append(r.euler.e)  # euler
-                        masks.append(torch.ones(3, device=self.cfg.calibration.device))
+                        masks.append(torch.ones(3, device=self.cfg.device))
                     if not any(r.position is t for t in params):
                         params.append(r.position)  # position
-                        masks.append(torch.ones(3, device=self.cfg.calibration.device))
+                        masks.append(torch.ones(3, device=self.cfg.device))
 
         # collect extrinsics cam parameters
         if self.extr:
-            for cam_id in self.camera_ids:
+            for cam_id in range(self.scene.n_cameras):
                 cam = self.scene.cameras[cam_id]
                 params.append(cam.pose.euler.e)  # euler
                 params.append(cam.pose.position)  # position
-                masks.append(torch.ones(3, device=self.cfg.calibration.device))
-                masks.append(torch.ones(3, device=self.cfg.calibration.device))
+                masks.append(torch.ones(3, device=self.cfg.device))
+                masks.append(torch.ones(3, device=self.cfg.device))
 
         # collect intrinsics
         if self.intr_K:
-            for cam_id in self.camera_ids:
+            for cam_id in range(self.scene.n_cameras):
                 cam = self.scene.cameras[cam_id]
                 params.append(cam.intr.K_params)
-                masks.append(torch.zeros(4, device=self.cfg.calibration.device))
+                masks.append(torch.ones(4, device=self.cfg.device))
 
         # collect distortion coefficients
         if self.intr_D:
-            for cam_id in self.camera_ids:
+            for cam_id in range(self.scene.n_cameras):
                 cam = self.scene.cameras[cam_id]
                 params.append(cam.intr.D_params)
-                masks.append(torch.ones(5, device=self.cfg.calibration.device))
+                masks.append(torch.ones(5, device=self.cfg.device))
+
+        # collect world rotation
+        if self.world_rot:
+            p = self.scene.world_pose
+            params.append(p.euler.e)
+            masks.append(torch.ones(3, device=self.cfg.device))
+
 
         for p in params:
             p.requires_grad = True
 
         return params, masks
 
-    def __filter_gradients(self, params, params_mask) -> None:
+    def __update_gradients(self, params, params_mask) -> None:
         for i, p in enumerate(params):
             if p.grad is not None:
                 p.grad *= params_mask[i]

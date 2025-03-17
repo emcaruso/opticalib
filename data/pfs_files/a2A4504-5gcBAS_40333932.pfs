@@ -63,7 +63,7 @@ BslMultipleROIRowSelector	Row8
 BslMultipleROIRowSize	0
 BslMultipleROIRowSelector	Row1
 BslMultipleROIRowSelector	Row1
-BslMultipleROIRowOffset	1200
+BslMultipleROIRowOffset	1624
 BslMultipleROIRowSelector	Row2
 BslMultipleROIRowOffset	4512
 BslMultipleROIRowSelector	Row3
@@ -424,7 +424,7 @@ UserDefinedValueSelector	Value5
 UserDefinedValue	0
 UserDefinedValueSelector	Value1
 DeviceIndicatorMode	Active
-GevSCPSPacketSize	1500
-GevSCPD	512
+GevSCPSPacketSize	8192
+GevSCPD	81125
 GevSCFTD	0
 BandwidthReserveMode	Standard

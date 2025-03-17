@@ -1,0 +1,3 @@
+_target_: loss.exponential_mse
+gamma: 4
+reduction: mean

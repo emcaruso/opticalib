@@ -2,9 +2,8 @@ defaults:
   - _self_
   - objects: charuco_boards/charuco_11x9_cvl.yaml
   - collector: collector_default
-  - optimizer: adam
-  - scheduler: none
-  - loss: l1
+  - precalib: config
+  - calib: config
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -37,13 +36,35 @@ collect:
 calibration:
   do: True
   device: cpu # cpu or cuda
-  # in_ram: True
-  iterations: 0
-  reg_weight: 100
-  percentage_points_min: 0.5
   focal_length_prior: 0.016 # focal length prior in meters
-  objects_pose_opt:
-    position: [1, 0, 0]
-    eul: [0, 0, 0]
+  calib_params:
+    iterations: 2500
+    params: ${calib}
+    lr: 0.0003
+    reg_weight: 0
+    early_stopping_diff: 0.0
+    objects_pose_opt:
+      position: [1, 1, 0]
+      eul: [0, 0, 0]
+    test: ${calibration.test}
+    device: ${calibration.device}
+
+  precalib_params:
+    iterations: 700
+    params: ${precalib}
+    lr: 0.01
+    reg_weight: 0
+    early_stopping_diff: 0.0
+    test: ${calibration.test}
+    device: ${calibration.device}
+    objects_pose_opt:
+      position: [1, 1, 0]
+      eul: [0, 0, 0]
+
+  percentage_points_min: 0.75
+  test:
+    init_show: False
+    calib_show_realtime: True
+    calib_show_rate: 50
 
 get_charuco_images: True

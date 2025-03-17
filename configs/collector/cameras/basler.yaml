@@ -1,6 +1,6 @@
 sensor_type: basler
 
-exposure_time: 20000
+exposure_time: 10000
 gamma: 1
 gain: 10
 
@@ -9,7 +9,7 @@ pfs_dir: "${oc.env:ROOT}/data/pfs_files/"
 trigger:
   delay: 0
   line: Line2
-  fps: 8
+  fps: 1
 
 pixel_format:
   val: BayerRG8

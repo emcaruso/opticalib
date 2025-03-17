@@ -1,0 +1,3 @@
+_target_: torch.optim.lr_scheduler.CosineAnnealingLR
+T_max: ${calibration.calib_params.iterations} # Automatically use the epochs from config.yaml
+eta_min: 0.0

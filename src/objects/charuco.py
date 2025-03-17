@@ -197,8 +197,8 @@ class CharucoObject(Object):
                 t1 = self.pose.location()
                 R2 = self.relative_poses[board_id].rotation()
                 t2 = self.relative_poses[board_id].location()
-                R = R2 @ R1  # Combine rotations
-                t = R2 @ t1 + t2  # Combine translations
+                R = R1 @ R2  # Combine rotations
+                t = R1 @ t2 + t1  # Combine translations
                 p = points @ R.transpose(-2, -1) + t
             points_list.append(p)
         return points_list
@@ -346,6 +346,6 @@ class CharucoDetector(ObjectDetector):
     def detect_features(self, images: List[Image], device = "cpu") -> List[Features]:
         features = [self.detect_charuco_corners(i, device=device) for i in images]
         return [
-            CharucoFeatures(corners=f["charuco_corners"], ids=f["charuco_ids"])
+            CharucoFeatures(corners=f["charuco_corners"], ids=f["charuco_ids"], device=device)
             for f in features
         ]

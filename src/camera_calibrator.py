@@ -34,7 +34,7 @@ class CameraCalibrator:
             trigger = self.detector.images_has_at_least_one_feature
             c.capture_till_q(in_ram=self.cfg.collect.in_ram, trigger=trigger)
         c.save(save_raw = True, save_postprocessed = True)
-        c.leds_off()
+        c.light_controller.leds_off()
 
     def __set_lights(self, c):
         c.light_controller.leds_off()
@@ -49,7 +49,8 @@ class CameraCalibrator:
             detector=self.detector,
             logger=self.logger,
         )
-        s.run()
+        s.calibrate()
+        s.plot_colormaps()
         s.save()
 
     def generate_charuco_images(self, show=False):
