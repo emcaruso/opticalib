@@ -12,7 +12,7 @@ from utils_ema.geometry_euler import eul
 
 class Scene():
 
-    def __init__(self, cfg: DictConfig, logger: Logger, features_gt: List[List[Features]], cameras: List[Camera_cv], objects: List[Object]):
+    def __init__(self, cfg: DictConfig, logger: Logger, features_gt: List[List[Features]], cameras: Camera_cv, objects: List[Object]):
         self.cfg = cfg
         self.logger = logger
         self.features_gt = features_gt
@@ -21,10 +21,12 @@ class Scene():
         self.world_pose = Pose(euler = eul(torch.zeros([3], dtype=torch.float32)), position = torch.zeros([3], dtype=torch.float32))
         self.n_cameras = len(self.features_gt[0])
         self.time_instants = len(self.features_gt)
-        self.n_features_min = int(self.cfg.calibration.percentage_points_min*self.objects[0].params.n_corners)
+        self.n_features_min = int(self.cfg.calibration.percentage_points_min*self.objects.params.n_corners)
 
 
     def get_xy(self, time_id: int, concatenate: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
+        p3D, p2D = self.get_3D_2D_points()
+        points2D_hat_undistort = self.cameras.project_points(p3D, longtens=False, und=False, transform_cam_pose=self.world_pose)
 
         points_gt_list = []
         points_hat_list = []
@@ -71,48 +73,8 @@ class Scene():
         else:
             return points_hat_list, points_gt_list
 
-    def get_3D_2D_points_foreach_cam(self, filter_boards_by_n_features_min: bool = False, numpy: bool = False):
-        points_3D = []
-        points_2D = []
-        infos = []
-        ids3D = self.objects[0].ids()
-
-        n_corners = self.objects[0].params.n_corners
-
-        # for each cam
-        for cam_id in range(len(self.features_gt[0])):
-
-            ratio = self.cameras[cam_id].intr.pixel_unit_ratio()
-
-            # init relative poses
-            points_2D_list = []
-            points_3D_list = []
-            infos_list = []
-
-            for board_id in range(self.objects[0].params.n_boards):
-                # ids_3D_list = ids3D[board_id]
-
-                for time_id in range(len(self.features_gt)):
-                    
-                    features = self.features_gt[time_id][cam_id]
-                    ids_2D = features.ids[board_id]
-
-                    if filter_boards_by_n_features_min and len(ids_2D) < self.n_features_min:
-                        continue
-
-                    p2D = features.points[board_id]
-                    p3D = self.objects[time_id].params.points_list[board_id][ids_2D-board_id*n_corners].squeeze(1)
-                    points_2D_list.append(p2D.squeeze(1).cpu().numpy())
-                    points_3D_list.append((p3D * ratio).cpu().numpy())
-                    infos_list.append({"cam_id": cam_id, "board_id": board_id, "time_id": time_id})
-
-            points_3D.append(points_3D_list)
-            points_2D.append(points_2D_list)
-            infos.append(infos_list)
-
-        if numpy:
-            points_3D = [p3D for p3D in points_3D]
-            points_2D = [p for p in points_2D]
-
-        return points_3D, points_2D, infos
-
+    def get_3D_2D_points(self):
+        ratio = self.cameras.intr.pixel_unit_ratio()[...,None]
+        p3D = self.objects.points()
+        p2D = self.features_gt * (1/ratio)
+        return p3D, p2D

@@ -50,10 +50,8 @@ class CharucoObject(Object):
         return cls(
             cfg=cfg,
             params=p,
-            pose=Pose(position=torch.zeros(3, dtype=torch.float32), euler=eul(torch.zeros(3, dtype=torch.float32))),
-            relative_poses=[
-                Pose(position=torch.zeros(3, dtype=torch.float32), euler=eul(torch.zeros(3, dtype=torch.float32))) for _ in range(n)
-            ],
+            pose=Pose(position=torch.zeros([1,1,1,3], dtype=torch.float32), euler=eul(torch.zeros([1,1,1,3], dtype=torch.float32))),
+            relative_poses=Pose(position=torch.zeros([1,1,n,3], dtype=torch.float32), euler=eul(torch.zeros([1,1,n,3], dtype=torch.float32))),
             device = device
         )
 
@@ -62,7 +60,7 @@ class CharucoObject(Object):
         cfg: DictConfig,
         params: SimpleNamespace,
         pose: Pose,
-        relative_poses: List[Pose],
+        relative_poses: Pose,
         device="cpu",
     ) -> None:
         self.cfg = cfg
@@ -74,8 +72,7 @@ class CharucoObject(Object):
 
     def to(self, device):
         self.pose.to(device)
-        for p in self.relative_poses:
-            p.to(device)
+        self.relative_poses.to(device)
         self.params.points_list = [p.to(device) for p in self.params.points_list]
         self.params.ids_list = [i.to(device) for i in self.params.ids_list]
         return self
@@ -105,10 +102,10 @@ class CharucoObject(Object):
             CharucoObject.__get_grid(params, device) for _ in range(params.n_boards)
         ]
         params.ids_list = [
-                torch.arange(i * params.n_corners, (i + 1) * params.n_corners, device=device)
+                torch.arange(i * params.n_corners, (i + 1) * params.n_corners, device=device, dtype=torch.int64)
                 for i in range(params.n_boards)
             ]
-        
+
         params.detector_params = cfg.detector
         return params
 
@@ -188,21 +185,17 @@ class CharucoObject(Object):
         return grid.to(device)
 
     def points(self) -> List[torch.Tensor]:
-        points_list = []
-        for board_id, points in enumerate(self.params.points_list):
-            if self.relative_poses[board_id] is None:
-                p=None
-            else:
-                R1 = self.pose.rotation()
-                t1 = self.pose.location()
-                R2 = self.relative_poses[board_id].rotation()
-                t2 = self.relative_poses[board_id].location()
-                R = R1 @ R2  # Combine rotations
-                t = R1 @ t2 + t1  # Combine translations
-                p = points @ R.transpose(-2, -1) + t
-            points_list.append(p)
-        return points_list
 
+        points_in = torch.stack(self.params.points_list, dim=0)[None,None,...]
+
+        R1 = self.pose.rotation()
+        t1 = self.pose.location()
+        R2 = self.relative_poses.rotation()
+        t2 = self.relative_poses.location()
+        R = R1 @ R2  # Combine rotations
+        t = R1 @ t2[...,None] + t1[...,None]  # Combine translations
+        points_out = points_in @ R.transpose(-2, -1) + t.unsqueeze(-3).squeeze(-1)
+        return points_out
 
     def ids(self) -> List[torch.Tensor]:
         return self.params.ids_list
@@ -303,10 +296,10 @@ class CharucoDetector(ObjectDetector):
 
             charuco_corners_all.append(torch.tensor(charuco_corners, device=device))
             charuco_corners_ids.append(
-                torch.tensor(charuco_ids + i * self.params.n_corners, device=device)
+                torch.tensor(charuco_ids + i * self.params.n_corners, device=device, dtype=torch.int64)
             )
             charuco_markers_all.append(torch.tensor(valid_corners, device=device ))
-            charuco_markers_ids.append(torch.tensor(valid_ids, device=device))
+            charuco_markers_ids.append(torch.tensor(valid_ids, device=device, dtype=torch.int64))
 
 
         return {

@@ -61,9 +61,9 @@ calibration:
       position: [1, 1, 0]
       eul: [0, 0, 0]
 
-  percentage_points_min: 0.75
+  percentage_points_min: 0.35
   test:
-    init_show: False
+    init_show: True
     calib_show_realtime: True
     calib_show_rate: 50
 

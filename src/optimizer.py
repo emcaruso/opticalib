@@ -55,7 +55,6 @@ class Optimizer:
         self.scheduler = instantiate(self.cfg.params.scheduler, optimizer=self.optimizer)
         progress_bar = tqdm(range(self.cfg.iterations), desc="Iteration: ")
 
-
         for it in progress_bar:
 
             self.__visualize(it)
@@ -176,58 +175,52 @@ class Optimizer:
 
         # collect object poses
         if self.obj_pose:
-            for time_id in range(self.scene.time_instants):
-                obj = self.scene.objects[time_id]
-                pose = obj.pose
-                params.append(pose.euler.e)  # euler
-                params.append(pose.position)  # position
-                if "objects_pose_opt" in self.cfg.keys():
-                    masks.append(torch.tensor(self.cfg.objects_pose_opt.eul, device=self.cfg.device))
-                    masks.append(torch.tensor(self.cfg.objects_pose_opt.position, device=self.cfg.device))
-                else:
-                    masks.append(torch.ones(3, device=self.cfg.device))
-                    masks.append(torch.ones(3, device=self.cfg.device))
+            position = self.scene.objects.pose.position
+            euler = self.scene.objects.pose.euler.e
+            params.append(position)
+            params.append(euler)
+            if "objects_pose_opt" in self.cfg.keys():
+                position_mask = torch.zeros_like(position)
+                position_mask[...,0] = self.cfg.objects_pose_opt.position[0]
+                position_mask[...,1] = self.cfg.objects_pose_opt.position[1]
+                position_mask[...,2] = self.cfg.objects_pose_opt.position[2]
+                euler_mask = torch.zeros_like(euler)
+                euler_mask[...,0] = self.cfg.objects_pose_opt.eul[0]
+                euler_mask[...,1] = self.cfg.objects_pose_opt.eul[1]
+                euler_mask[...,2] = self.cfg.objects_pose_opt.eul[2]
+            else:
+                masks.append(torch.ones_like(position))
+                masks.append(torch.ones_like(euler))
         
         # collect object relative
         if self.obj_rel:
-            for o in self.scene.objects:
-                for r in o.relative_poses:
-                    if not any(r.euler.e is t for t in params):
-                        params.append(r.euler.e)  # euler
-                        masks.append(torch.ones(3, device=self.cfg.device))
-                    if not any(r.position is t for t in params):
-                        params.append(r.position)  # position
-                        masks.append(torch.ones(3, device=self.cfg.device))
+            params.append(self.scene.objects.relative_poses.position)
+            params.append(self.scene.objects.relative_poses.euler.e)
+            masks.append(torch.ones_like(self.scene.objects.relative_poses.position))
+            masks.append(torch.ones_like(self.scene.objects.relative_poses.euler.e))
 
         # collect extrinsics cam parameters
         if self.extr:
-            for cam_id in range(self.scene.n_cameras):
-                cam = self.scene.cameras[cam_id]
-                params.append(cam.pose.euler.e)  # euler
-                params.append(cam.pose.position)  # position
-                masks.append(torch.ones(3, device=self.cfg.device))
-                masks.append(torch.ones(3, device=self.cfg.device))
+            params.append(self.scene.cameras.pose.position)
+            params.append(self.scene.cameras.pose.euler.e)
+            masks.append(torch.ones_like(self.scene.cameras.pose.position))
+            masks.append(torch.ones_like(self.scene.cameras.pose.euler.e))
 
         # collect intrinsics
         if self.intr_K:
-            for cam_id in range(self.scene.n_cameras):
-                cam = self.scene.cameras[cam_id]
-                params.append(cam.intr.K_params)
-                masks.append(torch.ones(4, device=self.cfg.device))
+            params.append(self.scene.cameras.intr.K_params)
+            masks.append(torch.ones_like(self.scene.cameras.intr.K_params))
 
         # collect distortion coefficients
         if self.intr_D:
-            for cam_id in range(self.scene.n_cameras):
-                cam = self.scene.cameras[cam_id]
-                params.append(cam.intr.D_params)
-                masks.append(torch.ones(5, device=self.cfg.device))
+            params.append(self.scene.cameras.intr.D_params)
+            masks.append(torch.ones_like(self.scene.cameras.intr.D_params))
 
         # collect world rotation
         if self.world_rot:
             p = self.scene.world_pose
             params.append(p.euler.e)
             masks.append(torch.ones(3, device=self.cfg.device))
-
 
         for p in params:
             p.requires_grad = True
