@@ -63,7 +63,7 @@ calibration:
 
   percentage_points_min: 0.35
   test:
-    init_show: True
+    init_show: False
     calib_show_realtime: True
     calib_show_rate: 50
 

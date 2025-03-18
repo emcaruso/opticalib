@@ -98,11 +98,13 @@ class Optimizer:
     def __visualize(self, it):
         if self.cfg.test.calib_show_realtime and it % self.cfg.test.calib_show_rate == 0:
             images = []
+            x_tens, y_tens, mask = self.scene.get_xy(pixel_unit=True)
             for cam_id in range(self.scene.n_cameras):
-                x = torch.cat([ self.scene.get_xy(time_id)[0][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
-                y = torch.cat([ self.scene.get_xy(time_id)[1][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
-                r = self.scene.cameras[0].intr.resolution
-                image = Image(torch.ones([r[0], r[1], 3]))
+                x = x_tens[:,cam_id,...].reshape(-1,2)
+                y = y_tens[:,cam_id,...].reshape(-1,2)
+                import ipdb; ipdb.set_trace()
+                r = self.scene.cameras.intr.resolution[0,cam_id,0,...]
+                image = Image(torch.ones([r[0].item(), r[1].item(), 3]))
                 image.draw_circles(x, color=(0,0,255), radius = 7, thickness=4)
                 image.draw_circles(y, color=(255,0,0), radius = 7)
                 image.draw_lines(x, y, color=(0,255,0))
