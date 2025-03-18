@@ -6,7 +6,7 @@ import numpy as np
 
 # from blender_saver import blender_save
 from tqdm import tqdm
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from logging import Logger
 from omegaconf import DictConfig
 from pathlib import Path
@@ -168,7 +168,8 @@ class Optimizer:
             cam.intr.K_params.data = torch.abs(cam.intr.K_params).data
 
 
-    def __collect_parameters(self) -> Tuple[List[torch.Tensor],List[torch.Tensor]]:
+    # TODO
+    def __collect_parameters(self) -> List[Dict]:
 
         params = []
         masks = []
@@ -232,6 +233,71 @@ class Optimizer:
             p.requires_grad = True
 
         return params, masks
+
+    # def __collect_parameters(self) -> Tuple[List[torch.Tensor],List[torch.Tensor]]:
+    #
+    #     params = []
+    #     masks = []
+    #
+    #     # collect object poses
+    #     if self.obj_pose:
+    #         for time_id in range(self.scene.time_instants):
+    #             obj = self.scene.objects[time_id]
+    #             pose = obj.pose
+    #             params.append(pose.euler.e)  # euler
+    #             params.append(pose.position)  # position
+    #             if "objects_pose_opt" in self.cfg.keys():
+    #                 masks.append(torch.tensor(self.cfg.objects_pose_opt.eul, device=self.cfg.device))
+    #                 masks.append(torch.tensor(self.cfg.objects_pose_opt.position, device=self.cfg.device))
+    #             else:
+    #                 masks.append(torch.ones(3, device=self.cfg.device))
+    #                 masks.append(torch.ones(3, device=self.cfg.device))
+    #
+    #     # collect object relative
+    #     if self.obj_rel:
+    #         for o in self.scene.objects:
+    #             for r in o.relative_poses:
+    #                 if not any(r.euler.e is t for t in params):
+    #                     params.append(r.euler.e)  # euler
+    #                     masks.append(torch.ones(3, device=self.cfg.device))
+    #                 if not any(r.position is t for t in params):
+    #                     params.append(r.position)  # position
+    #                     masks.append(torch.ones(3, device=self.cfg.device))
+    #
+    #     # collect extrinsics cam parameters
+    #     if self.extr:
+    #         for cam_id in range(self.scene.n_cameras):
+    #             cam = self.scene.cameras[cam_id]
+    #             params.append(cam.pose.euler.e)  # euler
+    #             params.append(cam.pose.position)  # position
+    #             masks.append(torch.ones(3, device=self.cfg.device))
+    #             masks.append(torch.ones(3, device=self.cfg.device))
+    #
+    #     # collect intrinsics
+    #     if self.intr_K:
+    #         for cam_id in range(self.scene.n_cameras):
+    #             cam = self.scene.cameras[cam_id]
+    #             params.append(cam.intr.K_params)
+    #             masks.append(torch.ones(4, device=self.cfg.device))
+    #
+    #     # collect distortion coefficients
+    #     if self.intr_D:
+    #         for cam_id in range(self.scene.n_cameras):
+    #             cam = self.scene.cameras[cam_id]
+    #             params.append(cam.intr.D_params)
+    #             masks.append(torch.ones(5, device=self.cfg.device))
+    #
+    #     # collect world rotation
+    #     if self.world_rot:
+    #         p = self.scene.world_pose
+    #         params.append(p.euler.e)
+    #         masks.append(torch.ones(3, device=self.cfg.device))
+    #
+    #
+    #     for p in params:
+    #         p.requires_grad = True
+    #
+    #     return params, masks
 
     def __update_gradients(self, params, params_mask) -> None:
         for i, p in enumerate(params):

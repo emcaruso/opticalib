@@ -40,7 +40,7 @@ calibration:
   calib_params:
     iterations: 2500
     params: ${calib}
-    lr: 0.0003
+    lr: 0.001
     reg_weight: 0
     early_stopping_diff: 0.0
     objects_pose_opt:
@@ -50,7 +50,7 @@ calibration:
     device: ${calibration.device}
 
   precalib_params:
-    iterations: 700
+    iterations: 1000
     params: ${precalib}
     lr: 0.01
     reg_weight: 0
