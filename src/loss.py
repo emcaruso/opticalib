@@ -16,13 +16,26 @@ class exponential_mse():
         else:
             return loss
 
-class saturated_mse():
+class saturated_l1():
     def __init__(self, threshold=0.1, below=False):
         self.threshold = threshold
         self.below = below
 
     def __call__(self, y_true, y_pred):
-        loss = torch.norm((y_true - y_pred), dim=-1 )
+        loss = torch.abs(y_true - y_pred)
+        if self.below:
+            saturated_loss = torch.where(loss < self.threshold, self.threshold, loss)
+        else:
+            saturated_loss = torch.where(loss > self.threshold, self.threshold, loss)
+        return torch.mean(saturated_loss)
+
+class saturated_l2():
+    def __init__(self, threshold=0.1, below=False):
+        self.threshold = threshold
+        self.below = below
+
+    def __call__(self, y_true, y_pred):
+        loss = (y_true - y_pred)**2
         if self.below:
             saturated_loss = torch.where(loss < self.threshold, self.threshold, loss)
         else:

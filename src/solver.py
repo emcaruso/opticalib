@@ -38,8 +38,10 @@ class Solver:
                               n_features_min=self.scene.n_features_min)
         optimizer.run()
 
+        self.scene.update_scene()
+
         # for show purposes
-        if self.cfg.calibration.test.calib_show_realtime:
+        if self.cfg.calibration.test.calib_show_last:
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
@@ -78,7 +80,6 @@ class Solver:
     def plot_colormaps(self, cmap='viridis', point_size=10):
         for cam_id in range(self.scene.n_cameras):
 
-            import ipdb; ipdb.set_trace()
             res = self.scene.cameras[cam_id].intr.resolution
             x_min = 0; y_min = 0; x_max = res[0]; y_max = res[1]
 

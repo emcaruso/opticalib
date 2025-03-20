@@ -35,17 +35,19 @@ collect:
 
 calibration:
   do: True
-  device: cpu # cpu or cuda
+  device: cuda # cpu or cuda
   focal_length_prior: 0.016 # focal length prior in meters
   calib_params:
-    iterations: 2500
+    iterations: 2000
     params: ${calib}
     lr: 0.001
     reg_weight: 0
     early_stopping_diff: 0.0
     objects_pose_opt:
-      position: [1, 1, 0]
-      eul: [0, 0, 0]
+      position: [True, False, False]
+      eul: [False, False, False]
+    world_rotation:
+      eul: [False, False, True]
     test: ${calibration.test}
     device: ${calibration.device}
 
@@ -58,13 +60,16 @@ calibration:
     test: ${calibration.test}
     device: ${calibration.device}
     objects_pose_opt:
-      position: [1, 1, 0]
-      eul: [0, 0, 0]
+      position: [True, False, False]
+      eul: [False, False, False]
+    world_rotation:
+      eul: [False, False, True]
 
   percentage_points_min: 0.35
   test:
     init_show: False
     calib_show_realtime: True
-    calib_show_rate: 50
+    calib_show_last: False
+    calib_show_rate: 500
 
 get_charuco_images: True

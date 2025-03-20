@@ -45,7 +45,6 @@ class Initializer():
                              )
         optimizer.run()
         
-        
         return scene
 
     def __get_scene(self) -> Scene:
@@ -83,13 +82,13 @@ class Initializer():
 
             K = scene.cameras.intr.K_pix[0,cam_id,0,...].cpu().numpy()
             D = scene.cameras.intr.D_params[0,cam_id,0,...].cpu().numpy()
-            flags = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_FIX_FOCAL_LENGTH
+            flags = cv2.CALIB_USE_INTRINSIC_GUESS
+            # flags = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_FIX_FOCAL_LENGTH
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_FOCAL_LENGTH | cv2.CALIB_FIX_PRINCIPAL_POINT
             # flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
             #         cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH)
-            # flags = cv2.CALIB_USE_INTRINSIC_GUESS
-            imageSize = tuple(scene.cameras.intr.resolution[0,cam_id,0,:].int().numpy())
-            # res = cv2.calibrateCamera( objectPoints=p3D, imagePoints=p2D, imageSize=imageSize, cameraMatrix=None, distCoeffs=None)
+            imageSize = tuple(scene.cameras.intr.resolution[0,cam_id,0,:].int().cpu().numpy())
+            # res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=None, distCoeffs=None)
             res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=K, distCoeffs=D, flags=flags)
             self.logger.info(f"Precalib error for camera {cam_id}: {res[0]}")
 
@@ -225,7 +224,6 @@ class Initializer():
         time_instants = len(features_gt)
         self.obj.pose.position = self.obj.pose.position.repeat(time_instants, 1, 1, 1)
         self.obj.pose.euler.e = self.obj.pose.euler.e.repeat(time_instants, 1, 1, 1)
-        self.obj.points()
         return self.obj
 
     def __collect_features_gt(self) -> List[List[Features]]:
@@ -250,24 +248,8 @@ class Initializer():
                         ids = ids_list[board_id] - board_id * n_corners
                         points_tensor[time_id, cam_id, board_id, ids, :] = points.unsqueeze(1).type(torch.float32)
             torch.save( points_tensor, self.cfg.paths.features_file)
+            return points_tensor 
         else:
-            features = torch.load(self.cfg.paths.features_file)
-            features = features.to(self.cfg.calibration.device)
-            return features
-
-        # if not Path(self.cfg.paths.features_file).exists():
-        #     features = []
-        #     self.logger.info("Collecting features...")
-        #     progress_bar = tqdm(self.coll_data, desc="Collecting features", total = CollectorLoader.n_images)
-        #     for images in progress_bar:
-        #         features.append(self.detector.detect_features(images, device=self.cfg.calibration.device))
-        #     # save custom object with pickle
-        #     np.save(self.cfg.paths.features_file, features, allow_pickle=True)
-        #
-        #
-        # else:
-        #     features = np.load(self.cfg.paths.features_file, allow_pickle=True)
-        #     for feat in features:
-        #         for f in feat:
-        #             f.to(self.cfg.calibration.device)
-        # return features
+            points_tensor = torch.load(self.cfg.paths.features_file)
+            points_tensor = points_tensor.to(self.cfg.calibration.device)
+            return points_tensor

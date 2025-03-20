@@ -22,7 +22,7 @@ class Optimizer:
     def __init__(
         self, cfg: DictConfig, scene: Scene, logger: Logger,
         intr_K: bool = True, intr_D: bool = True, extr: bool = True, obj_rel: bool = True, obj_pose: bool = True,
-        world_rot: bool = False, n_features_min: int = 0,
+        n_features_min: int = 0,
     ) -> None:
         self.logger: Logger = logger
         self.cfg: DictConfig = cfg
@@ -33,7 +33,7 @@ class Optimizer:
         self.extr = extr
         self.obj_rel = obj_rel
         self.obj_pose = obj_pose
-        self.world_rot = world_rot
+        self.world_rot = cfg.world_rotation
 
         self.n_features_min = n_features_min
 
@@ -55,55 +55,46 @@ class Optimizer:
         self.scheduler = instantiate(self.cfg.params.scheduler, optimizer=self.optimizer)
         progress_bar = tqdm(range(self.cfg.iterations), desc="Iteration: ")
 
+
+        # training loop
         for it in progress_bar:
 
             self.__visualize(it)
             self.__update_params()
 
-            # for each time instant
-            loss_total = []
-            dist_total = []
-
-            # training loop
-            # for time_id in range(self.scene.time_instants)[0:8]:
-            for time_id in range(self.scene.time_instants):
-                x, y = self.scene.get_xy(time_id, concatenate=True)
-                if len(x) > 0:
-                    loss = self.__loss(x, y)
-                    dist = self.__mean_distance(x, y)
-                    loss_total.append( loss )
-                    dist_total.append( dist )
-            dist_average = torch.mean(torch.stack(dist_total))
-            loss_average = torch.mean(torch.stack(loss_total))
-            loss_average.backward()
-            print(self.scene.cameras[0].pose.euler.e)
+            # backward
+            x, y = self.scene.get_xy_flat_masked(pixel_unit=True)
+            loss = self.__loss(x, y)
+            dist = self.__mean_distance(x, y)
+            loss.backward()
             
             # update
             self.__regularization_step()
             self.__update_gradients(self.params, self.params_mask)
             self.optimizer.step()
+        
             self.optimizer.zero_grad()
-            
-            # update scheduler and early stopping
             self.scheduler.step()
-            if self.__early_stopping(loss_average):
+            if self.__early_stopping(loss):
                 break
-            progress_bar.set_postfix({"average distance": f"{dist_average:9.3f}",
-                                      "average loss": f"{loss_average:9.3f}"})
+
+            # progress bar update
+            progress_bar.set_postfix({"average distance": f"{dist:9.3f}",
+                                      "average loss": f"{loss:9.3f}"})
 
             # for visualization purposes
         if self.cfg.test.calib_show_realtime and self.cfg.iterations > 0:
-            self.__visualize(self.cfg.iterations)
+            self.__visualize(-1)
 
     def __visualize(self, it):
-        if self.cfg.test.calib_show_realtime and it % self.cfg.test.calib_show_rate == 0:
+        if (self.cfg.test.calib_show_realtime and it % self.cfg.test.calib_show_rate == 0 and self.cfg.test.calib_show_rate != -1) or it == -1:
             images = []
             x_tens, y_tens, mask = self.scene.get_xy(pixel_unit=True)
             for cam_id in range(self.scene.n_cameras):
-                x = x_tens[:,cam_id,...].reshape(-1,2)
-                y = y_tens[:,cam_id,...].reshape(-1,2)
-                import ipdb; ipdb.set_trace()
-                r = self.scene.cameras.intr.resolution[0,cam_id,0,...]
+                idxs = mask[:,cam_id,...].reshape(-1)
+                x = x_tens[:,cam_id,...].reshape(-1,2)[idxs]
+                y = y_tens[:,cam_id,...].reshape(-1,2)[idxs]
+                r = self.scene.cameras.intr.resolution[0,cam_id,0,...].type(torch.int64)
                 image = Image(torch.ones([r[0].item(), r[1].item(), 3]))
                 image.draw_circles(x, color=(0,0,255), radius = 7, thickness=4)
                 image.draw_circles(y, color=(255,0,0), radius = 7)
@@ -121,9 +112,8 @@ class Optimizer:
     def __regularization_step(self) -> torch.Tensor:
         if self.intr_K:
             loss_reg_list = []
-            for cam in self.scene.cameras:
-                loss_reg_list.append(torch.abs(cam.intr.K_params[0] - cam.intr.K_params[1]))
-                loss_reg_list.append(torch.abs(cam.intr.K_params[2] - cam.intr.K_params[3]))
+            loss_reg_list.append(torch.abs(self.scene.cameras.intr.K_params[...,0] - self.scene.cameras.intr.K_params[...,1]))
+            # loss_reg_list.append(torch.abs(cam.intr.K_params[2] - cam.intr.K_params[3]))
             loss_reg = self.cfg.reg_weight * torch.stack(loss_reg_list).sum()
             loss_reg.backward()
 
@@ -164,11 +154,19 @@ class Optimizer:
 
 
     def __update_params(self) -> None:
-        for cam_id in range(self.scene.n_cameras):
-            cam = self.scene.cameras[cam_id]
-            cam.intr.K_params.data = torch.abs(cam.intr.K_params).data
+        with torch.no_grad():
+            self.scene.cameras.intr.K_params.data = torch.abs(self.scene.cameras.intr.K_params).data
+            # print(self.scene.world_pose.euler.e.data)
 
-
+            # if self.world_rot:
+            #     world_transf = self.scene.world_pose
+            #     new_pose = world_transf * self.scene.cameras.pose
+            #     self.scene.cameras.pose.position.data = new_pose.position.data
+            #     self.scene.cameras.pose.euler.e.data = new_pose.euler.e.data
+            #     self.scene.world_pose.position.data *= 0
+            #     self.scene.world_pose.euler.e.data *= 0
+            
+            
     # TODO
     def __collect_parameters(self) -> List[Dict]:
 
@@ -183,13 +181,15 @@ class Optimizer:
             params.append(euler)
             if "objects_pose_opt" in self.cfg.keys():
                 position_mask = torch.zeros_like(position)
-                position_mask[...,0] = self.cfg.objects_pose_opt.position[0]
-                position_mask[...,1] = self.cfg.objects_pose_opt.position[1]
-                position_mask[...,2] = self.cfg.objects_pose_opt.position[2]
+                position_mask[...,0] = int(self.cfg.objects_pose_opt.position[0])
+                position_mask[...,1] = int(self.cfg.objects_pose_opt.position[1])
+                position_mask[...,2] = int(self.cfg.objects_pose_opt.position[2])
                 euler_mask = torch.zeros_like(euler)
-                euler_mask[...,0] = self.cfg.objects_pose_opt.eul[0]
-                euler_mask[...,1] = self.cfg.objects_pose_opt.eul[1]
-                euler_mask[...,2] = self.cfg.objects_pose_opt.eul[2]
+                euler_mask[...,0] = int(self.cfg.objects_pose_opt.eul[0])
+                euler_mask[...,1] = int(self.cfg.objects_pose_opt.eul[1])
+                euler_mask[...,2] = int(self.cfg.objects_pose_opt.eul[2])
+                masks.append(position_mask)
+                masks.append(euler_mask)
             else:
                 masks.append(torch.ones_like(position))
                 masks.append(torch.ones_like(euler))
@@ -222,7 +222,10 @@ class Optimizer:
         if self.world_rot:
             p = self.scene.world_pose
             params.append(p.euler.e)
-            masks.append(torch.ones(3, device=self.cfg.device))
+            # masks.append(torch.zeros_like(p.euler.e))
+            mask = torch.tensor(self.cfg.world_rotation.eul, device=p.device)[None,None,None]
+            masks.append(mask)
+            # masks.append(torch.ones_like(p.euler.e))
 
         for p in params:
             p.requires_grad = True
@@ -298,4 +301,5 @@ class Optimizer:
         for i, p in enumerate(params):
             if p.grad is not None:
                 p.grad *= params_mask[i]
+
 

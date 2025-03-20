@@ -184,16 +184,24 @@ class CharucoObject(Object):
         grid[..., 1] *= -1
         return grid.to(device)
 
-    def points(self) -> List[torch.Tensor]:
+    def points(self, transform_world_rot=None) -> List[torch.Tensor]:
 
         points_in = torch.stack(self.params.points_list, dim=0)[None,None,...]
 
         R1 = self.pose.rotation()
-        t1 = self.pose.location()
+        if transform_world_rot is None:
+            R0 = torch.eye(3, device=self.device)
+            for _ in range(len(R1.shape)-2):
+                R0 = R0.unsqueeze(0)
+        else:
+            R0 = transform_world_rot.inverse()
+
+        t1 = self.pose.location()[...,None]
         R2 = self.relative_poses.rotation()
-        t2 = self.relative_poses.location()
-        R = R1 @ R2  # Combine rotations
-        t = R1 @ t2[...,None] + t1[...,None]  # Combine translations
+        t2 = self.relative_poses.location()[...,None]
+        R = R0 @ R1 @ R2  # Combine rotations
+        # R01 = R0 @ R1
+        t = R0 @ R1 @ t2 + t1  # Combine translations
         points_out = points_in @ R.transpose(-2, -1) + t.unsqueeze(-3).squeeze(-1)
         return points_out
 
@@ -210,10 +218,14 @@ class CharucoObject(Object):
 
         # # Create boards
         boards = []
-        for board_id, p in enumerate(self.relative_poses):
+        # for board_id, p in enumerate(self.relative_poses):
+        for board_id in range(self.params.n_boards):
+            position = self.relative_poses.position.reshape(-1,3)[board_id]
+            euler = self.relative_poses.euler.e.reshape(-1,3)[board_id]
+            pose = Pose(position=position, euler=eul(euler))
             name = f"board_{board_id:03d}"
             board = put_plane_in_scene(scene, name, self.params.length_x, self.params.length_y)
-            set_object_pose(board, p)
+            set_object_pose(board, pose)
             set_object_texture(name=name, obj=board, image_path=img_paths[board_id])
             boards.append(board)
 

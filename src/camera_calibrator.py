@@ -50,7 +50,7 @@ class CameraCalibrator:
             logger=self.logger,
         )
         s.calibrate()
-        s.plot_colormaps()
+        # s.plot_colormaps()
         s.save()
 
     def generate_charuco_images(self, show=False):
