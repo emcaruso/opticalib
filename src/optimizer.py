@@ -27,14 +27,12 @@ class Optimizer:
         self.logger: Logger = logger
         self.cfg: DictConfig = cfg
         self.scene = scene
-
         self.intr_K = intr_K
         self.intr_D = intr_D
         self.extr = extr
         self.obj_rel = obj_rel
         self.obj_pose = obj_pose
         self.world_rot = cfg.world_rotation
-
         self.n_features_min = n_features_min
 
     def __early_stopping(self, loss: torch.Tensor) -> bool:
@@ -72,7 +70,6 @@ class Optimizer:
             self.__regularization_step()
             self.__update_gradients(self.params, self.params_mask)
             self.optimizer.step()
-        
             self.optimizer.zero_grad()
             self.scheduler.step()
             if self.__early_stopping(loss):
@@ -83,6 +80,7 @@ class Optimizer:
                                       "average loss": f"{loss:9.3f}"})
 
             # for visualization purposes
+        self.__update_params()
         if self.cfg.test.calib_show_realtime and self.cfg.iterations > 0:
             self.__visualize(-1)
 
@@ -156,6 +154,8 @@ class Optimizer:
     def __update_params(self) -> None:
         with torch.no_grad():
             self.scene.cameras.intr.K_params.data = torch.abs(self.scene.cameras.intr.K_params).data
+        self.scene.cameras.intr.update_intrinsics()
+        print(self.scene.cameras.intr.D_params)
             # print(self.scene.world_pose.euler.e.data)
 
             # if self.world_rot:

@@ -8,6 +8,7 @@ from sensorflow.src.collector import Collector
 from solver import Solver
 from objects.charuco import CharucoObject, CharucoDetector
 from utils_ema.image import Image
+import cv2
 
 
 class CameraCalibrator:
@@ -52,6 +53,11 @@ class CameraCalibrator:
         s.calibrate()
         # s.plot_colormaps()
         s.save()
+
+        # for show purposes
+        if self.cfg.calibration.test.calib_show_last:
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
     def generate_charuco_images(self, show=False):
         images = self.obj.generate_charuco_images()

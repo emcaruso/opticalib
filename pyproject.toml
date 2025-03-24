@@ -1,0 +1,26 @@
+[project]
+name = "projecttemplate"
+version = "0.1.0"
+description = "Template project"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bpy>=4.0.0",
+    "hydra-core>=1.3.2",
+    "matplotlib>=3.10.1",
+    "numpy==1.24.2",
+    "opencv-contrib-python==4.8.0.74",
+    "opencv-python==4.7.0.72",
+    "plotly>=6.0.1",
+    "pypylon==2.2.0",
+    "scikit-image>=0.25.2",
+    "screeninfo>=0.8.1",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
+    "utils-ema",
+    "wandb>=0.19.8",
+]
+
+[tool.uv.sources]
+utils-ema = { git = "https://github.com/emcaruso/utils.git" }

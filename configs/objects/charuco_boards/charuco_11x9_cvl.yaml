@@ -14,7 +14,7 @@ boards:
   aruco_n: 6
 
 detector:
-  adaptiveThreshWinSizeStep: 3
+  adaptiveThreshWinSizeStep: 5
   # detector_params.minDistanceToBorder = 1
   # detector_params.minGroupDistance = 0.1
   # detector_params.minMarkerDistanceRate = 0.05

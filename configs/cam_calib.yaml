@@ -24,7 +24,7 @@ paths:
 collect:
   do: True
   mode:
-    val: "automatic"
+    val: "manual"
     valid_options:
       - "manual"
       - "automatic"
@@ -38,10 +38,10 @@ calibration:
   device: cuda # cpu or cuda
   focal_length_prior: 0.016 # focal length prior in meters
   calib_params:
-    iterations: 2000
+    iterations: 5000
     params: ${calib}
-    lr: 0.001
-    reg_weight: 0
+    lr: 0.0001
+    reg_weight: 100
     early_stopping_diff: 0.0
     objects_pose_opt:
       position: [True, False, False]
@@ -52,9 +52,9 @@ calibration:
     device: ${calibration.device}
 
   precalib_params:
-    iterations: 1000
+    iterations: 2000
     params: ${precalib}
-    lr: 0.01
+    lr: 0.05
     reg_weight: 0
     early_stopping_diff: 0.0
     test: ${calibration.test}
@@ -69,7 +69,7 @@ calibration:
   test:
     init_show: False
     calib_show_realtime: True
-    calib_show_last: False
+    calib_show_last: True
     calib_show_rate: 500
 
 get_charuco_images: True

@@ -82,11 +82,11 @@ class Initializer():
 
             K = scene.cameras.intr.K_pix[0,cam_id,0,...].cpu().numpy()
             D = scene.cameras.intr.D_params[0,cam_id,0,...].cpu().numpy()
-            flags = cv2.CALIB_USE_INTRINSIC_GUESS
+            # flags = cv2.CALIB_USE_INTRINSIC_GUESS
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_FIX_FOCAL_LENGTH
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_FOCAL_LENGTH | cv2.CALIB_FIX_PRINCIPAL_POINT
-            # flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
-            #         cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH)
+            flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
+                    cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH)
             imageSize = tuple(scene.cameras.intr.resolution[0,cam_id,0,:].int().cpu().numpy())
             # res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=None, distCoeffs=None)
             res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=K, distCoeffs=D, flags=flags)

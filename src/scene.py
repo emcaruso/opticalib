@@ -96,6 +96,10 @@ class Scene():
         for cam_id, cam in enumerate(self.cameras):
             for image_id in tqdm(range(self.time_instants), desc=f"Undistorting images for cam { cam_id }"):
                 img = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
+
+                # Test
+                img = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
+
                 img_und = cam.intr.undistort_image(img)
                 img_und.save(undistort_dir / f"cam_{cam_id:03d}" / f"{image_id:03d}.png")
 
