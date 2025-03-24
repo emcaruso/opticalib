@@ -1,5 +1,5 @@
 !results/.gitkeep
 results/*
 __pycache__/
-!data/.gitkeep
+!data/pfs_files/.gitkeep
 data/
