@@ -1,21 +1,12 @@
 import torch
-import cv2
-import plotly.express as px
 import plotly.graph_objects as go
-import subprocess
-import numpy as np
-
-from typing import List, Tuple
+from blender_saver import blender_save
 from logging import Logger
 from omegaconf import DictConfig
-from pathlib import Path
-from objects.object import Object, Features, ObjectDetector
-from blender_saver import blender_save
+from objects.object import Object, ObjectDetector
 from optimizer import Optimizer
 from initializer import Initializer
-from utils_ema.plot import plotter
-from utils_ema.image import Image
-import matplotlib.pyplot as plt
+from pathlib import Path
 
 
 class Solver:
@@ -38,57 +29,27 @@ class Solver:
                               n_features_min=self.scene.n_features_min)
         optimizer.run()
 
-        self.scene.update_scene()
+        # plot colormaps
+        self.plot_colormaps()
 
-        # for show purposes
-        if self.cfg.calibration.test.calib_show_last:
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-
-    # def plot_colormaps(self, cmap='viridis', point_size=10):
-    #
-    #     for cam_id in range(self.scene.n_cameras):
-    #         x = torch.cat([ self.scene.get_xy(time_id)[0][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
-    #         y = torch.cat([ self.scene.get_xy(time_id)[1][cam_id] for time_id in range(self.scene.time_instants) ], dim=0).cpu()
-    #         # compute distance between x and y
-    #         distances = torch.norm(x-y, dim=1).unsqueeze(1)
-    #         coords = x
-    #
-    #         if coords.shape[1] != 2 or distances.shape[1] != 1 or coords.shape[0] != distances.shape[0]:
-    #             raise ValueError("coords should have shape [N,2] and distances should have shape [N,1] with matching N.")
-    #
-    #         # Normalize distances
-    #         B_max = distances.max()
-    #         B_normalized = distances / B_max if B_max > 0 else distances  # Avoid division by zero
-    #
-    #         # Convert tensors to NumPy for plotting
-    #         A_np = coords.detach().cpu().numpy()
-    #         B_np = B_normalized.detach().cpu().numpy().flatten()
-    #
-    #         # Create plot
-    #         fig, ax = plt.subplots(figsize=(6, 5))
-    #         sc = ax.scatter(A_np[:, 1], A_np[:, 0], c=B_np, cmap=cmap, s=point_size)
-    #
-    #         # Add colorbar
-    #         cbar = plt.colorbar(sc, ax=ax)
-    #         cbar.set_label(f"Distance (Max: {B_max.item():.2f} pixels)")
-    #
-    #         import ipdb; ipdb.set_trace()
-    #         # Show plot
-    #         plt.show()
 
     def plot_colormaps(self, cmap='viridis', point_size=10):
+
+        x_tens, y_tens, mask = self.scene.get_xy(pixel_unit=True)
+        dir = Path(self.cfg.paths.calib_results_dir) / "colormaps"
+        if not dir.exists():
+            dir.mkdir(parents=True)
+
         for cam_id in range(self.scene.n_cameras):
 
-            res = self.scene.cameras[cam_id].intr.resolution
-            x_min = 0; y_min = 0; x_max = res[0]; y_max = res[1]
-
-            x = torch.cat([self.scene.get_xy(time_id)[0][cam_id] for time_id in range(self.scene.time_instants)], dim=0).cpu()
-            y = torch.cat([self.scene.get_xy(time_id)[1][cam_id] for time_id in range(self.scene.time_instants)], dim=0).cpu()
-            
-            # Compute distance between x and y
-            distances = torch.norm(x - y, dim=1).unsqueeze(1)
+            idxs = mask[:,cam_id,...].reshape(-1).detach().cpu()
+            x = x_tens[:,cam_id,...].reshape(-1,2)[idxs].detach().cpu()
+            y = y_tens[:,cam_id,...].reshape(-1,2)[idxs].detach().cpu()
+            distances = torch.norm(x - y, dim=1).unsqueeze(1).detach().cpu()
             coords = x
+
+            res = self.scene.cameras.intr.resolution[0,cam_id,0,...].type(torch.int64).detach().cpu()
+            x_min = 0; y_min = 0; x_max = res[0]; y_max = res[1]
 
             if coords.shape[1] != 2 or distances.shape[1] != 1 or coords.shape[0] != distances.shape[0]:
                 raise ValueError("coords should have shape [N,2] and distances should have shape [N,1] with matching N.")
@@ -130,9 +91,20 @@ class Solver:
             # Show the figure
             fig.show()
 
+            # save figure
+            filename = f"colormap_cam_{cam_id}.html"
+            path = dir / filename
+            fig.write_html(path)
+
     def save(self) -> None:
+
+        # scene postprocess and save
+        self.scene.scene_postprocess_and_save()
+
         # Save calibration results on blender
         blender_save(self.cfg.paths.calib_results_dir, self.scene, self.logger)
+
+        # Save camera data
  
     def load(self) -> bool:
         return True

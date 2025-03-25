@@ -48,9 +48,10 @@ class Initializer():
         return scene
 
     def __get_scene(self) -> Scene:
+        # do NOT change order
         features_gt = self.__collect_features_gt()
-        cameras = self.__get_cameras(features_gt)
-        objects = self.__get_objects(features_gt)
+        cameras = self.__get_cameras()
+        objects = self.__get_objects()
         scene = Scene(self.cfg, self.logger, features_gt, cameras, objects)
         return scene
 
@@ -60,13 +61,14 @@ class Initializer():
         '''
 
         points_3D, points_2D = scene.get_3D_2D_points()
+        points_3D = points_3D.repeat(1, scene.n_cameras, 1, 1, 1)
         n_board = points_2D.shape[2]
 
         for cam_id in range(scene.n_cameras):
             
             ratio = scene.cameras.intr.unit_pixel_ratio()[0,cam_id,0,0].item()
             p2D = points_2D[:,cam_id,...].reshape(-1, points_2D.shape[-2], 2) * (1/ratio)
-            p3D = points_3D.reshape(-1, points_2D.shape[-2], 3) * (1/ratio)
+            p3D = points_3D[:,cam_id,...].reshape(-1, points_2D.shape[-2], 3) * (1/ratio)
             p3D_list = []
             p2D_list = []
             idxs_list = []
@@ -188,46 +190,62 @@ class Initializer():
 
         
 
-    def __get_cameras(self, features_gt) -> Camera_cv:
-        n_cameras = len(features_gt[0])
-        K = torch.zeros([1,n_cameras,1,3,3])
-        D = torch.zeros([1,n_cameras,1,5])
+    def __get_cameras(self) -> Camera_cv:
+
+        n_cameras = CollectorLoader.n_cams
         resolution = torch.zeros([1,n_cameras,1,2])
+        sensor_size = torch.zeros_like(resolution)
+        info, _ = CollectorLoader.load_info(self.cfg.paths.collection_dir)
         for i in range(n_cameras):
-
-            # get resolution
-            resolution[0,i,0,...] = CollectorLoader.resolutions[i]
-            info = CollectorLoader.load_info(self.cfg.paths.collection_dir)
+            r = CollectorLoader.resolutions[i]
+            resolution[0,i,0,...] = r
             pixel_size = torch.FloatTensor(info[f"cam_{i:03d}"].PixelSizeMicrometers)*1e-6
-            crop_offset = torch.FloatTensor(info[f"cam_{i:03d}"]["crop_offset"])
-            resolution_native = torch.FloatTensor(info[f"cam_{i:03d}"]["resolution_native"])
+            sensor_size[0,i,0,...] = r*pixel_size
 
-            # handle crop influence on principal point
-            sensor_size = resolution*pixel_size
-            if torch.all(CollectorLoader.resolutions[i].int()==resolution_native.int()).item():
-                crop_offset = torch.zeros_like(crop_offset)
+        if self.cfg.paths.first_camera_guess is None:
+            K = torch.zeros([1,n_cameras,1,3,3])
+            D = torch.zeros([1,n_cameras,1,5])
+            for i in range(n_cameras):
+                pixel_size = torch.FloatTensor(info[f"cam_{i:03d}"].PixelSizeMicrometers)*1e-6
+                crop_offset = torch.FloatTensor(info[f"cam_{i:03d}"]["crop_offset"])
+                resolution_native = torch.FloatTensor(info[f"cam_{i:03d}"]["resolution_native"])
 
-            # prior intrinsics
-            f = self.cfg.calibration.focal_length_prior
-            c = (resolution_native/2 - crop_offset)*pixel_size
-            K[0,i,0,...] = torch.FloatTensor([[f, 0, c[0]], [0, f, c[1]], [0, 0, 1]])
+                # handle crop influence on principal point
+                if torch.all(CollectorLoader.resolutions[i].int()==resolution_native.int()).item():
+                    crop_offset = torch.zeros_like(crop_offset)
 
-        intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
+                # prior intrinsics
+                f = self.cfg.calibration.focal_length_prior
+                c = (resolution_native/2 - crop_offset)*pixel_size
+                K[0,i,0,...] = torch.FloatTensor([[f, 0, c[0]], [0, f, c[1]], [0, 0, 1]])
 
-        position = torch.zeros([1,n_cameras,1,3], dtype=torch.float32)
-        euler = eul(torch.zeros([1,n_cameras,1,3], dtype=torch.float32))
-        pose = Pose(position=position, euler=euler)
+            intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
+            position = torch.zeros([1,n_cameras,1,3], dtype=torch.float32)
+            euler = eul(torch.zeros([1,n_cameras,1,3], dtype=torch.float32))
+            pose = Pose(position=position, euler=euler)
+        else:
+            K = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "K.npy")).to(self.cfg.calibration.device)
+            D = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "D.npy")).to(self.cfg.calibration.device)
+            intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
+            position = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "position.npy")).to(self.cfg.calibration.device)
+            euler = eul(torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "euler.npy")).to(self.cfg.calibration.device))
+            pose = Pose(position=position, euler=euler)
         cameras = Camera_cv(device=self.cfg.calibration.device, intrinsics=intr, pose=pose)
+
         return cameras
 
-    def __get_objects(self, features_gt) -> List[Object]:
-        time_instants = len(features_gt)
-        self.obj.pose.position = self.obj.pose.position.repeat(time_instants, 1, 1, 1)
-        self.obj.pose.euler.e = self.obj.pose.euler.e.repeat(time_instants, 1, 1, 1)
+    def __get_objects(self) -> List[Object]:
+        time_instants = CollectorLoader.n_images
+        if self.cfg.collect.one_cam_at_time:
+            n = CollectorLoader.n_cams
+        else:
+            n = 1
+        self.obj.pose.position = self.obj.pose.position.repeat(time_instants, n, 1, 1)
+        self.obj.pose.euler.e = self.obj.pose.euler.e.repeat(time_instants, n, 1, 1)
         return self.obj
 
     def __collect_features_gt(self) -> List[List[Features]]:
-        self.coll_data = CollectorLoader.load_images(self.cfg.paths.collection_dir, in_ram=self.cfg.collect.in_ram, raw=True)
+        self.coll_data = CollectorLoader.load_images(self.cfg.paths.collection_dir, in_ram=False, raw=True)
         next(self.coll_data) # initialize static members
 
 

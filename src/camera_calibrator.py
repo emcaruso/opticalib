@@ -7,8 +7,6 @@ from omegaconf import DictConfig
 from sensorflow.src.collector import Collector
 from solver import Solver
 from objects.charuco import CharucoObject, CharucoDetector
-from utils_ema.image import Image
-import cv2
 
 
 class CameraCalibrator:
@@ -29,18 +27,18 @@ class CameraCalibrator:
         c = Collector(cfg=self.cfg.collector, logger=self.logger)
         c.postprocessing.add_function(self.detector.draw_features)
         self.__set_lights(c)
-        if self.cfg.collect.mode.val == "manual":
-            c.capture_manual(in_ram=self.cfg.collect.in_ram)
-        elif self.cfg.collect.mode.val == "automatic":
+        if self.cfg.collector.mode.val == "manual":
+            c.capture_manual(in_ram=False)
+        elif self.cfg.collector.mode.val == "automatic":
             trigger = self.detector.images_has_at_least_one_feature
-            c.capture_till_q(in_ram=self.cfg.collect.in_ram, trigger=trigger)
+            c.capture_till_q(in_ram=False, trigger=trigger)
         c.save(save_raw = True, save_postprocessed = True)
         c.light_controller.leds_off()
 
     def __set_lights(self, c):
         c.light_controller.leds_off()
-        for channel in self.cfg.collect.lights.channels:
-            c.light_controller.led_on(channel, amp=self.cfg.collect.lights.intensity)
+        for channel in self.cfg.collector.lights.channels:
+            c.light_controller.led_on(channel, amp=self.cfg.collector.lights.intensity)
 
     def calibrate(self):
 
@@ -51,13 +49,9 @@ class CameraCalibrator:
             logger=self.logger,
         )
         s.calibrate()
-        # s.plot_colormaps()
+        s.plot_colormaps()
         s.save()
 
-        # for show purposes
-        if self.cfg.calibration.test.calib_show_last:
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
 
     def generate_charuco_images(self, show=False):
         images = self.obj.generate_charuco_images()

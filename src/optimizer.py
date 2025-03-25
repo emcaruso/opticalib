@@ -1,20 +1,10 @@
 import torch
-import cv2
-import sys
-import subprocess
-import numpy as np
-
-# from blender_saver import blender_save
 from tqdm import tqdm
-from typing import List, Tuple, Optional, Dict
+from typing import List, Dict
 from logging import Logger
 from omegaconf import DictConfig
-from pathlib import Path
 from hydra.utils import instantiate
 from utils_ema.charuco import Image
-from objects.object import Object, Features, ObjectDetector
-from blender_saver import blender_save
-from utils_ema.plot import plotter
 from scene import Scene
 
 
@@ -98,7 +88,8 @@ class Optimizer:
                 image.draw_circles(y, color=(255,0,0), radius = 7)
                 image.draw_lines(x, y, color=(0,255,0))
                 images.append(image)
-            Image.show_multiple_images(images, wk=1)
+            latest_show = int(it != -1 or not self.cfg.test.calib_show_last)
+            Image.show_multiple_images(images, wk = latest_show)
 
     def __mean_distance(self, f_hat: torch.Tensor, f_gt: torch.Tensor) -> torch.Tensor:
         return torch.mean(torch.norm(f_hat-f_gt, dim=1))
@@ -155,7 +146,8 @@ class Optimizer:
         with torch.no_grad():
             self.scene.cameras.intr.K_params.data = torch.abs(self.scene.cameras.intr.K_params).data
         self.scene.cameras.intr.update_intrinsics()
-        print(self.scene.cameras.intr.D_params)
+        # print(self.scene.cameras.intr.D_params)
+        # print(self.scene.cameras.intr.K_params)
             # print(self.scene.world_pose.euler.e.data)
 
             # if self.world_rot:

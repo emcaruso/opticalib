@@ -1,17 +1,24 @@
 defaults:
   - cameras: basler
   - lights: gardasoft
-  - strategies: light_sequence # null for no particular collection modes
+  - strategies: none
   - postprocessings: none
 
 paths:
-  save_dir: "${oc.env:ROOT}/results/collection"
+  save_dir: "${paths.collection_dir}"
 
 mode:
   val: manual
   valid_options:
     - manual
+    - automatic
     - light_sequence
+  one_cam_at_time: ${collect.one_cam_at_time}
+  in_ram: False
+
+lights:
+  channels: [8, 9, 10]
+  intensity: 1.0
 
 save:
   raw: false

@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - objects: charuco_boards/charuco_11x9_cvl.yaml
-  - collector: collector_default
+  - collector: collector_global
   - precalib: config
   - calib: config
   - override hydra/hydra_logging: disabled
@@ -14,45 +14,39 @@ hydra:
 
 paths:
   src_dir: "${oc.env:ROOT}/src"
-  results_dir: "${oc.env:ROOT}/results"
-  collection_dir: "${paths.results_dir}/collection"
+  results_dir: "${oc.env:ROOT}/results/global"
+  collection_dir: "${paths.results_dir}/collection/global"
   charuco_images_dir: "${paths.results_dir}/charuco_images"
   calib_results_dir: "${paths.results_dir}/calib_results"
   features_file: "${paths.collection_dir}/features.npy"
+  first_camera_guess: ${paths.results_dir}/../intrinsics/calib_results # path to intrinsics result or null
   log_file: "${paths.results_dir}/log.txt"
 
 collect:
   do: True
-  mode:
-    val: "manual"
-    valid_options:
-      - "manual"
-      - "automatic"
-  in_ram: False
-  lights:
-    channels: [8, 9, 10]
-    intensity: 1.0
+  one_cam_at_time: False
 
 calibration:
   do: True
   device: cuda # cpu or cuda
-  focal_length_prior: 0.016 # focal length prior in meters
+  focal_length_prior: 0.016 # focal length prior in meters, if intrinsics guess is not provided
+
   calib_params:
-    iterations: 5000
+    iterations: 50
     params: ${calib}
     lr: 0.0001
-    reg_weight: 100
+    reg_weight: 10000
     early_stopping_diff: 0.0
     objects_pose_opt:
-      position: [True, False, False]
-      eul: [False, False, False]
+      position: [True, True, True]
+      eul: [True, True, True]
     world_rotation:
-      eul: [False, False, True]
+      eul: [False, False, False]
     test: ${calibration.test}
     device: ${calibration.device}
 
   precalib_params:
-    iterations: 2000
+    iterations: 50
     params: ${precalib}
     lr: 0.05
     reg_weight: 0
@@ -60,16 +54,16 @@ calibration:
     test: ${calibration.test}
     device: ${calibration.device}
     objects_pose_opt:
-      position: [True, False, False]
-      eul: [False, False, False]
+      position: [True, True, True]
+      eul: [True, True, True]
     world_rotation:
-      eul: [False, False, True]
+      eul: [False, False, False]
 
   percentage_points_min: 0.35
   test:
     init_show: False
     calib_show_realtime: True
-    calib_show_last: True
+    calib_show_last: False
     calib_show_rate: 500
 
 get_charuco_images: True

@@ -1,9 +1,9 @@
-import itertools
+import numpy as np
 import shutil
 from tqdm import tqdm
 import torch
 import os
-from objects.object import Object, ObjectDetector, Features
+from objects.object import Object, Features
 from pathlib import Path
 from omegaconf import DictConfig
 from logging import Logger
@@ -67,11 +67,20 @@ class Scene():
         p2D = self.features_gt * (1/ratio)
         return p3D, p2D
 
-    def update_scene(self):
+    def scene_postprocess_and_save(self):
 
         # apply world rotation
         self.objects.pose.euler = self.objects.pose.euler.rot2eul(self.world_pose.rotation().transpose(-2,-1) @ self.objects.pose.rotation())
         self.cameras.pose = self.world_pose.get_inverse_pose() * self.cameras.pose
+
+        # save cameras pose
+        with torch.no_grad():
+            # save K, D, position, euler
+            os.makedirs(self.cfg.paths.calib_results_dir, exist_ok=True)
+            np.save(Path(self.cfg.paths.calib_results_dir) / "K.npy", self.cameras.intr.K.detach().cpu().numpy())
+            np.save(Path(self.cfg.paths.calib_results_dir) / "D.npy", self.cameras.intr.D_params.detach().cpu().numpy())
+            np.save(Path(self.cfg.paths.calib_results_dir) / "position.npy", self.cameras.pose.position.detach().cpu().numpy())
+            np.save(Path(self.cfg.paths.calib_results_dir) / "euler.npy", self.cameras.pose.euler.e.detach().cpu().numpy())
 
         # from single to multiple cameras
         with torch.no_grad():
@@ -89,17 +98,32 @@ class Scene():
                 cams.append(cam)
             self.cameras = cams
 
-        # undistort images
+        # undistort and save images
         undistort_dir = Path(self.cfg.paths.calib_results_dir) / "undist_images"
         shutil.rmtree(str(undistort_dir), ignore_errors=True)
         os.makedirs(str(undistort_dir), exist_ok=True)
         for cam_id, cam in enumerate(self.cameras):
             for image_id in tqdm(range(self.time_instants), desc=f"Undistorting images for cam { cam_id }"):
-                img = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
+                img_dst = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
 
-                # Test
-                img = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
-
-                img_und = cam.intr.undistort_image(img)
+                # # Test undist
+                # import cv2
+                # from objects.object import CharucoDetector
+                # cam.intr.D_params = torch.tensor([-1.9, 1.9, 0, 0, -1.9])
+                # cam.intr.compute_undistortion_map()
+                # img_und = cam.intr.undistort_image(img_dst)
+                # detector = CharucoDetector(params = self.objects.params)
+                # p2D_und = detector.detect_features([img_und])[0].points[1]
+                # p2D_und = p2D_und.reshape(-1, 2)
+                # p2D_dst = cam.distort(p2D_und.cpu())
+                # img_und = img_und.draw_circles(p2D_und)
+                # img_dst = img_dst.draw_circles(p2D_dst)
+                # cv2.destroyAllWindows()
+                # img_und.show(img_name="dist")
+                # img_dst.show(img_name="ori")
+                # cv2.waitKey(0)
+                
+                img_und = cam.intr.undistort_image(img_dst)
                 img_und.save(undistort_dir / f"cam_{cam_id:03d}" / f"{image_id:03d}.png")
+
 

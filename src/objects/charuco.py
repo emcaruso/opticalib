@@ -1,4 +1,3 @@
-import os
 import bpy
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +8,6 @@ from typing import List, Dict
 from omegaconf import DictConfig
 from objects.object import Object, Features, ObjectDetector
 from utils_ema.charuco import Charuco
-from utils_ema.camera_cv import Camera_cv
 from utils_ema.geometry_pose import Pose
 from utils_ema.geometry_euler import eul
 from utils_ema.image import Image
@@ -263,7 +261,7 @@ class CharucoDetector(ObjectDetector):
 
     def detect_charuco_corners(self, image: Image, device:str = "cpu") -> Dict[str, List[torch.Tensor]]:
 
-        img = image.uint8().numpy()
+        img = Image(image.gray()).uint8().numpy()
 
         charuco_corners_all = []
         charuco_corners_ids = []
@@ -304,7 +302,8 @@ class CharucoDetector(ObjectDetector):
             if not retval:
                 charuco_corners = np.empty([0,1,2])
                 charuco_ids = np.empty([0,1])
-
+            else:
+                charuco_corners = cv2.cornerSubPix( img, charuco_corners, winSize=(5,5), zeroZone=(-1,-1), criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1) )
 
             charuco_corners_all.append(torch.tensor(charuco_corners, device=device))
             charuco_corners_ids.append(

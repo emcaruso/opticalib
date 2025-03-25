@@ -1,16 +1,11 @@
 import bpy
 import os
-import random
-from utils_ema.camera_cv import Camera_cv
 from pathlib import Path
-from typing import List
-from objects.object import Object
+from scene import Scene
 from logging import Logger
 from utils_ema.blender_utils import set_object_pose, put_cam_in_scene , set_background_images
 from utils_ema.geometry_pose import Pose
 from utils_ema.geometry_euler import eul
-from utils_ema.camera_cv import Camera_cv
-from scene import Scene, Intrinsics
 
 
 def blender_save(save_dir: str, scene_calib: Scene, logger: Logger):
