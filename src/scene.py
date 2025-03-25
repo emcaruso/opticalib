@@ -67,7 +67,7 @@ class Scene():
         p2D = self.features_gt * (1/ratio)
         return p3D, p2D
 
-    def scene_postprocess_and_save(self):
+    def scene_postprocess_and_save_data(self):
 
         # apply world rotation
         self.objects.pose.euler = self.objects.pose.euler.rot2eul(self.world_pose.rotation().transpose(-2,-1) @ self.objects.pose.rotation())

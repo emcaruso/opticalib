@@ -29,11 +29,8 @@ class Solver:
                               n_features_min=self.scene.n_features_min)
         optimizer.run()
 
-        # plot colormaps
-        self.plot_colormaps()
 
-
-    def plot_colormaps(self, cmap='viridis', point_size=10):
+    def save_colormaps(self, cmap='viridis', point_size=10):
 
         x_tens, y_tens, mask = self.scene.get_xy(pixel_unit=True)
         dir = Path(self.cfg.paths.calib_results_dir) / "colormaps"
@@ -99,12 +96,13 @@ class Solver:
     def save(self) -> None:
 
         # scene postprocess and save
-        self.scene.scene_postprocess_and_save()
+        self.scene.scene_postprocess_and_save_data()
 
         # Save calibration results on blender
         blender_save(self.cfg.paths.calib_results_dir, self.scene, self.logger)
 
         # Save camera data
+        self.save_colormaps()
  
     def load(self) -> bool:
         return True
