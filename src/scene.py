@@ -41,13 +41,22 @@ class Scene():
         p2D_hat_und = self.cameras.project_points(p3D_tens, longtens=False, und=False, transform_cam_pose=self.world_pose)
         p2D_hat_tens = self.cameras.distort(p2D_hat_und)
         mask = ((p2D_tens!=float('inf')).any(dim=-1).view(-1))
-        p2D_hat = p2D_hat_tens.reshape(-1, 2)[mask]
-        p2D = p2D_tens.reshape(-1, 2)[mask]
+
         ratio = self.cameras.intr.pixel_unit_ratio()[...,None]
         if pixel_unit:
-            return p2D_hat, p2D * ratio
+            p2D_scaled = p2D_tens * ratio
+            p2D_hat_scaled = p2D_hat_tens
         else:
-            return p2D, p2D_hat * (1/ratio)
+            p2D_scaled = p2D_tens
+            p2D_hat_scaled = p2D_hat_tens * (1/ratio)
+
+        p2D_hat = p2D_hat_scaled.reshape(-1, 2)[mask]
+        p2D = p2D_scaled.reshape(-1, 2)[mask]
+
+        if pixel_unit:
+            return p2D_hat, p2D
+        else:
+            return p2D, p2D_hat
 
     def get_xy(self, pixel_unit=False) -> Tuple[torch.Tensor, torch.Tensor]:
         p3D, p2D = self.get_3D_2D_points()

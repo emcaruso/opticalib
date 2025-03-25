@@ -49,7 +49,7 @@ class CameraCalibrator:
             logger=self.logger,
         )
         s.calibrate()
-        s.plot_colormaps()
+        s.save_colormaps()
         s.save()
 
 
