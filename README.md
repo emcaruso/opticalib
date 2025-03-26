@@ -54,17 +54,37 @@ detector:                      # aruco detection parameters
 ```
 
 As a first step, you have to generate charuco images. To generate charuco images, run the script `scripts/get_charuco_images.sh`. A window will appear, and you can choose a .yaml file in the `charuco_boards` folder. After choosing the file, charuco images are saved in `results/charuco_boards`, and will be displayed on the screen.
-Then you have to print charuco boards.
+Then you can to print charuco boards.
 After printing the boards, you have also to correct the `square_size` value in the .yaml file if it's different.
-when using multiple boards, you should put them on a rigid structure as their relative position and orientation must not change when acquiring images.
+If you use multiple boards (change the parameter `n_boards`), they will be considered as a single object, and their relative position and orientation must not change when acquiring images. In that case, you should put the charuco boards on a rigid structure
 
 
 ### Calibration
 
-The calibration process can be run in 3 different modalities
+#### Explanation of the method
 
-- Intrinsics calibration
-- Intrinsics calibration + global calibration
-- Intrinsics calibration + global calibration while keeping fixed intrinsics
+- Representation:
+In this project, we use the perspective camera model used in OpenCV (https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html).  Orientations are represented using Euler angles, using the YXZ convention. The 3D scene is composed by cameras, and an object with varying pose on time. The object consists on a set of charuco boards with fixed relative poses.
 
+- Initialization:
+The calibration method starts with an initialization step using OpenCV. It initializes the world reference frame and the relative rigid transformation between charuco boards when using multiple boards. Specifically, it initializes the world reference frame on the center of the first charuco board, selecting the images captured when as much points as possible are visible on all the images. We can also decide whether to keep the prior focal length specified in the config file while keeping the principal point at the center of the image, or to initialize it by calibrating with OpenCV.
 
+- Precalibration: 
+This step consists on solving a gradient-based, iterative, optimization problem with torch to optimize object poses while minimizing the reprojection error. We can also decide to constraint the object to lie on common world axes or to share some euler angles.
+
+- Calibration:
+Also the calibration step relies on an optimization problem like precalibration. This step, estimates the involved cameras parameters, such as the projection matrix and the distortion coefficients when performing intrinsics calibration, position and orientation of cameras when running extrinsics calibraiton, and both of them when running global calibration.
+
+##### 1. Intrinsics calibration
+
+Calibrate only the intrinsics parameters of cameras. You can run `collect_intrinsics.sh` to collect data, and run `calibrate_intrinsics` once data is collected. You can also run `collect_and_calibrate_intrinsics.sh` to do both steps. You can change parameters of intrinsics calibration looking at the config file `configs/cam_calib_intrinsics.yaml`:
+
+##### 2. Extrinsics calibration
+
+Calibrate only the extrinsics parameters of cameras, i.e. position and orientations. You can run `collect_extrinsics.sh` to collect data, and run `calibrate_extrinsics` once data is collected. You can also run `collect_and_calibrate_extrinsics.sh` to do both steps.
+
+##### 3. Global calibration
+
+Jointly calibrate intrinsics and extrinsics parameters of cameras. You can run `collect_global.sh` to collect data, and run `calibrate_global` once data is collected. You can also run `collect_and_calibrate_global.sh` to do both steps.
+
+### Results
