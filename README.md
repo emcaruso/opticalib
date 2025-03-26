@@ -58,6 +58,13 @@ Then you have to print charuco boards.
 After printing the boards, you have also to correct the `square_size` value in the .yaml file if it's different.
 when using multiple boards, you should put them on a rigid structure as their relative position and orientation must not change when acquiring images.
 
-```
-```
+
+### Calibration
+
+The calibration process can be run in 3 different modalities
+
+- Intrinsics calibration
+- Intrinsics calibration + global calibration
+- Intrinsics calibration + global calibration while keeping fixed intrinsics
+
 
