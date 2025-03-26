@@ -1,69 +1,68 @@
-defaults:
-  - _self_
-  - objects: charuco_boards/charuco_11x9_cvl.yaml
-  - collector: collector_global
-  - precalib: config
-  - calib: config
-  - override hydra/hydra_logging: disabled
-  - override hydra/job_logging: disabled
+defaults:                                            
+  - _self_                                                  # ❌ Do not change
+  - objects: charuco_boards/charuco_1boards_11x9.yaml       # ✅ choose your object here
+  - collector: collector_global                             # ❌ Do not change
+  - precalib: config                                        # ❌ Do not change
+  - calib: config                                           # ❌ Do not change
+  - override hydra/hydra_logging: disabled                  # ❌ Do not change
+  - override hydra/job_logging: disabled                    # ❌ Do not change
 
 hydra:
-  output_subdir: null
+  output_subdir: null     # ❌ Do not change
   run:
-    dir: .
+    dir: .                # ❌ Do not change
 
 paths:
-  src_dir: "${oc.env:ROOT}/src"
-  results_dir: "${oc.env:ROOT}/results/global"
-  collection_dir: "${paths.results_dir}/collection/global"
-  charuco_images_dir: "${paths.results_dir}/charuco_images"
-  calib_results_dir: "${paths.results_dir}/calib_results"
-  features_file: "${paths.collection_dir}/features.npy"
-  first_camera_guess: ${paths.results_dir}/../intrinsics/calib_results # path to intrinsics result or null
-  log_file: "${paths.results_dir}/log.txt"
+  src_dir: "${oc.env:ROOT}/src"                                         # ❌ Do not change
+  results_dir: "${oc.env:ROOT}/results/global"                          # ❌ Do not change
+  collection_dir: "${paths.results_dir}/collection/global"              # ❌ Do not change
+  charuco_images_dir: "${paths.results_dir}/charuco_images"             # ❌ Do not change
+  calib_results_dir: "${paths.results_dir}/calib_results"               # ❌ Do not change
+  features_file: "${paths.collection_dir}/features.npy"                 # ❌ Do not change
+  first_camera_guess: ${paths.results_dir}/../intrinsics/calib_results  # ✅ path to intrinsics result or null
+  log_file: "${paths.results_dir}/log.txt"                              # ❌ Do not change
+
+get_charuco_images: True            # ❌ Do not change
 
 collect:
-  do: True
-  one_cam_at_time: False
+  do: True                          # ❌ Do not change
+  one_cam_at_time: False            # ❌ Do not change
 
 calibration:
-  do: True
-  device: cuda # cpu or cuda
-  focal_length_prior: 0.016 # focal length prior in meters, if intrinsics guess is not provided
+  do: True                          # ❌ Do not change 
+  device: cuda                      # ✅ cpu or cuda
+  focal_length_prior: 0.016         # ✅ focal length prior in meters
+  percentage_points_min: 0.35       # ✅ percentage of minimum number of points detected on the object
 
   calib_params:
-    iterations: 50
-    params: ${calib}
-    lr: 0.0001
-    reg_weight: 10000
-    early_stopping_diff: 0.0
-    objects_pose_opt:
-      position: [True, True, True]
-      eul: [True, True, True]
-    world_rotation:
-      eul: [False, False, False]
-    test: ${calibration.test}
-    device: ${calibration.device}
+    params: ${calib}                # ❌ Do not change 
+    test: ${calibration.test}       # ❌ Do not change 
+    device: ${calibration.device}   # ❌ Do not change 
+    iterations: 50                  # ✅ number of iterations during calibration
+    lr: 0.0001                      # ✅ learning rate
+    reg_weight: 10000               # ✅ regularization weight to keep fx and fy close 
+    early_stopping_diff: 0.0        # ✅ difference between two consecutive losses to early stop 
+    objects_pose_opt:                
+      position: [True, True, True]  # ✅ axes used to optimize objects poses
+      eul: [True, True, True]       # ✅ euler angles used to optimize object poses
+    world_rotation:                 
+      eul: [False, False, False]    # ✅ optimize world rotation 
 
   precalib_params:
-    iterations: 50
-    params: ${precalib}
-    lr: 0.05
-    reg_weight: 0
-    early_stopping_diff: 0.0
-    test: ${calibration.test}
-    device: ${calibration.device}
-    objects_pose_opt:
-      position: [True, True, True]
-      eul: [True, True, True]
-    world_rotation:
-      eul: [False, False, False]
+    params: ${precalib}             # ❌ Do not change  
+    test: ${calibration.test}       # ❌ Do not change        
+    iterations: 50                  # ✅ number of iterations during calibration                  
+    lr: 0.05                        # ✅ learning rate                                            
+    reg_weight: 0                   # ❌ Do not change
+    early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
+    objects_pose_opt:               
+      position: [True, True, True]  # ✅ axes used to optimize objects poses                       
+      eul: [True, True, True]       # ✅ euler angles used to optimize object poses                                                                               
+    world_rotation:                 
+      eul: [False, False, False]    # ✅ optimize world rotation                                  
 
-  percentage_points_min: 0.35
   test:
-    init_show: False
-    calib_show_realtime: True
-    calib_show_last: False
-    calib_show_rate: 500
-
-get_charuco_images: True
+    init_show: False                # 
+    calib_show_realtime: True       # ✅ enable realtime visualization
+    calib_show_last: False          # ✅ interactive visualization at the end of calibration
+    calib_show_rate: 500            # ✅ rate during iteration for realtime visualization

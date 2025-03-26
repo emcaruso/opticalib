@@ -1,0 +1,15 @@
+type: charuco                  # ❌ Do not change
+
+boards:
+  number_x_square: 11          # number of squares in the X direction
+  number_y_square: 9           # number of squares the Y direction
+  resolution_x: 2200           # horizontal resolution in pixel
+  resolution_y: 1800           # vertical resolution in pixel
+  length_square: 0.024         # parameters on the marker (can be kept as it is)
+  length_marker: 0.018         # parameters on the marker (can be kept as it is)
+  n_boards: 1                  # number of boards used for calibration (for overlapping camera 1 is enough ...)
+  square_size: 0.0245          # size of each square of the board in meters
+  aruco_n: 6                   # size of aruco marker
+
+detector:                      # aruco detection parameters
+  adaptiveThreshWinSizeStep: 5
