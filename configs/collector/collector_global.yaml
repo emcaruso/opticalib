@@ -8,7 +8,7 @@ paths:
   save_dir: "${paths.collection_dir}"         # ❌ Do not change
 
 mode:
-  val: automatic                              # ✅ manual or automatic
+  val: manual                                 # ✅ manual or automatic
   valid_options:
     - manual                                  # ❌ Do not change
     - automatic                               # ❌ Do not change
