@@ -1,25 +1,25 @@
 defaults:
-  - cameras: basler
-  - lights: gardasoft
-  - strategies: none
-  - postprocessings: none
+  - cameras: basler # ❌ Do not change
+  - lights: none # ❌ Do not change
+  - strategies: none # ❌ Do not change
+  - postprocessings: none # ❌ Do not change
 
 paths:
-  save_dir: "${paths.collection_dir}"
+  save_dir: "${paths.collection_dir}" # ❌ Do not change
 
 mode:
-  val: manual
+  val: manual # ✅ manual or automatic
   valid_options:
-    - manual
-    - automatic
-    - light_sequence
-  one_cam_at_time: ${collect.one_cam_at_time}
-  in_ram: False
-
-lights:
-  channels: [8, 9, 10]
-  intensity: 1.0
+    - manual # ❌ Do not change
+    - automatic # ❌ Do not change
+  one_cam_at_time: ${collect.one_cam_at_time} # ❌ Do not change
+  in_ram: False # ❌ Do not change
 
 save:
-  raw: false
-  postprocessed: true
+  raw: false # ❌ Do not change
+  postprocessed: true # ❌ Do not change
+
+# lights:
+#   channels: [8, 9, 10]
+#   intensity: 1.0
+#

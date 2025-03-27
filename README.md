@@ -1,6 +1,6 @@
 # Opticalib
 
-This tool is designed for multi-camera calibration tasks, and estimates intrinsics and extrinsics of cameras. It also provides a blender scene to visualizate the results. It natively supports data collection using Basler GigE cameras.
+This tool is designed for multi-camera calibration tasks, and estimates intrinsics and extrinsics of cameras. in addition to providing the estimated parameters, it also generates data to visualize the estimated scene. It natively supports data collection using Basler GigE cameras.
 
 ## Installation
 
@@ -63,7 +63,7 @@ If you use multiple boards (change the parameter `n_boards`), they will be consi
 
 #### Explanation of the method
 
-- Representation:
+- Scene representation:
 In this project, we use the perspective camera model used in OpenCV (https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html).  Orientations are represented using Euler angles, using the YXZ convention. The 3D scene is composed by cameras, and an object with varying pose on time. The object consists on a set of charuco boards with fixed relative poses.
 
 - Initialization:
@@ -87,4 +87,62 @@ Calibrate only the extrinsics parameters of cameras, i.e. position and orientati
 
 Jointly calibrate intrinsics and extrinsics parameters of cameras. You can run `collect_global.sh` to collect data, and run `calibrate_global` once data is collected. You can also run `collect_and_calibrate_global.sh` to do both steps.
 
+### Collection
+
+When collecting images, the program will automatically detect connected Basler cameras, and a session will start to collect images. Parameters for Basler cameras can be set in the config file `configs/collector/cameras/basler.yaml`. You can set collection parameters such as
+
+- `exposure_time`: the exposure time measured in microseconds
+- `gamma`: the gamma value applied for gamma correction
+- `gain`: the intensity gain applied to the image
+- `fps`: refresh rate of cameras
+- `pixel_format/val`: to choose between RGB and grayscale images
+- `crop/do`: If true, images are cropped according to the ROI specified in the .pfs config file of basler cameras in `data/pfs_files`.
+- `crop/slot`: The slot associated to the ROI in the .pfs config file
+
+When working with cropped images, the method will automatically consider the offset of the principal point in the intrinsics parameters.
+
+You can run `collect_intrinsics.sh` for intrinsics calibration, or `collect_extrinsics.sh` for extrinsic (or global) calibration.
+
+When collecting images for intrinsics, you can collect a set of images for each camera at time. For intrinsics calibration, we suggest to capture at least 10 images covering a big portion of the image, especially the borders, with the charuco board. For cameras with high focal length, and long min depth of field, consider to use big charuco boards.
+
+While collecting images for extrinsics or global calibration instead, cameras will grab images simultaneously.
+There are mainly two modalities to capture images, and they can be set in the config files `configs/collector/collector_[global/intrinsics]`.
+
+```yaml
+defaults:
+  - cameras: basler       # ❌ Do not change
+  - lights: none          # ❌ Do not change
+  - strategies: none      # ❌ Do not change
+  - postprocessings: none # ❌ Do not change
+
+paths:
+  save_dir: "${paths.collection_dir}" # ❌ Do not change
+
+mode:
+  val: manual                                 # ✅ manual or automatic 
+  valid_options:                               
+    - manual                                  # ❌ Do not change
+    - automatic                               # ❌ Do not change
+  one_cam_at_time: ${collect.one_cam_at_time} # ❌ Do not change
+  in_ram: False                               # ❌ Do not change
+
+save:
+  raw: false           # ❌ Do not change 
+  postprocessed: true  # ❌ Do not change
+```
+
+- Manual:
+Press space to capture images, and Q to quit
+
+- Automatic:
+The collector starts acquiring images sequentially as soon at least 1 keypoint is visible. Press Q to stop the collection.
+
+
 ### Results
+
+Results are stored in `results/[intrinsics/extrinsics/global]`. Extrinsic and intrinsics data of cameras are stored in the npy files `D,K,euler,position`.
+
+In the `colormaps` folder, there are `.html` files that are plots relative to each camera. They represent, on the location of reprojected points, the distance with respect to the charuco point detected on the image. In this way, you can figure out if the reprojection error is higher on some areas of the image (typically image borders when having high barrel distortion).
+
+The program will also save a Blender scene of the calibrated multi-camera system. As in Blender we can only have pinhole-camera models with no distortion and same focal length on the two axes (perfectly square pixels), the cameras are inserted considering undistorted images with a single focal length value obtained by averaging fx and fy. In the Blender scene, both cameras and charuco boards will be created. Charuco boards, will also have different poses in different time instants, considering different captured images.
+
