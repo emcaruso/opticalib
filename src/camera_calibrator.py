@@ -33,12 +33,17 @@ class CameraCalibrator:
             trigger = self.detector.images_has_at_least_one_feature
             c.capture_till_q(in_ram=False, trigger=trigger)
         c.save(save_raw = True, save_postprocessed = True)
-        c.light_controller.leds_off()
+        self.__lights_off(c)
 
     def __set_lights(self, c):
-        c.light_controller.leds_off()
-        for channel in self.cfg.collector.lights.channels:
-            c.light_controller.led_on(channel, amp=self.cfg.collector.lights.intensity)
+        if c.light_controller is not None:
+            c.light_controller.leds_off()
+            for channel in self.cfg.collector.lights.channels:
+                c.light_controller.led_on(channel, amp=self.cfg.collector.lights.intensity)
+
+    def __lights_off(self, c):
+        if c.light_controller is not None:
+            c.light_controller.leds_off()
 
     def calibrate(self):
 

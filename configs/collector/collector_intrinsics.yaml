@@ -1,6 +1,6 @@
 defaults:
   - cameras: basler
-  - lights: gardasoft
+  - lights: none
   - strategies: none
   - postprocessings: none
 
@@ -16,10 +16,10 @@ mode:
   one_cam_at_time: ${collect.one_cam_at_time}
   in_ram: False
 
-lights:
-  channels: [8, 9, 10]
-  intensity: 1.0
-
+# lights:
+#   channels: [8, 9, 10]
+#   intensity: 1.0
+#
 save:
   raw: false
   postprocessed: true

@@ -1,7 +1,7 @@
 defaults:                                            
   - _self_                                                  # ❌ Do not change
   - objects: charuco_boards/charuco_1boards_11x9.yaml       # ✅ choose your object here
-  - collector: collector_global                             # ❌ Do not change
+  - collector: collector_intrinsics                         # ❌ Do not change
   - precalib: config                                        # ❌ Do not change
   - calib: config                                           # ❌ Do not change
   - override hydra/hydra_logging: disabled                  # ❌ Do not change
