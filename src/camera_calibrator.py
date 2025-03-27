@@ -24,6 +24,7 @@ class CameraCalibrator:
         # add more objects here in the future
 
     def collect_images(self):
+
         c = Collector(cfg=self.cfg.collector, logger=self.logger)
         c.postprocessing.add_function(self.detector.draw_features)
         self.__set_lights(c)

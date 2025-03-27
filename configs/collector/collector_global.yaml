@@ -1,6 +1,6 @@
 defaults:
   - cameras: basler                           # ❌ Do not change
-  - lights: none                              # ❌ Do not change
+  - lights: gardasoft                         # ❌ Do not change
   - strategies: none                          # ❌ Do not change
   - postprocessings: none                     # ❌ Do not change
 
@@ -19,7 +19,7 @@ save:
   raw: false                                  # ❌ Do not change
   postprocessed: true                         # ❌ Do not change
 
-# lights:
-#   channels: [8, 9, 10]
-#   intensity: 1.0
+lights:
+  channels: [8, 9, 10]
+  intensity: 1.0
 

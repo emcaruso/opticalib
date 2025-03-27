@@ -15,11 +15,11 @@ hydra:
 paths:
   src_dir: "${oc.env:ROOT}/src"                                         # ❌ Do not change
   results_dir: "${oc.env:ROOT}/results/intrinsics"                      # ❌ Do not change
-  collection_dir: "${paths.results_dir}/collection/intrinsics"          # ❌ Do not change
+  collection_dir: "${paths.results_dir}/collection"                     # ❌ Do not change
   charuco_images_dir: "${paths.results_dir}/charuco_images"             # ❌ Do not change
   calib_results_dir: "${paths.results_dir}/calib_results"               # ❌ Do not change
   features_file: "${paths.collection_dir}/features.npy"                 # ❌ Do not change
-  first_camera_guess: ${paths.results_dir}/../intrinsics/calib_results  # ❌ Do not change
+  first_camera_guess: null                                              # ❌ Do not change
   log_file: "${paths.results_dir}/log.txt"                              # ❌ Do not change
 
 get_charuco_images: True            # ❌ Do not change

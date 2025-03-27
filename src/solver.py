@@ -23,9 +23,12 @@ class Solver:
         self.logger.info("Initializing scene")
         self.scene = self.initializer.initialize()
 
-        # global calibration
+        # global / extrinsics calibration
         self.logger.info("Calibrating...")
+        intr_K = self.cfg.calibration.fixed_intrinsics
+        intr_D = intr_K
         optimizer = Optimizer(cfg=self.cfg.calibration.calib_params, scene=self.scene, logger=self.logger, 
+                              intr_K=intr_K, intr_D=intr_D, 
                               n_features_min=self.scene.n_features_min)
         optimizer.run()
 
@@ -95,14 +98,15 @@ class Solver:
 
     def save(self) -> None:
 
+        # Save camera data
+        self.save_colormaps()
+
         # scene postprocess and save
         self.scene.scene_postprocess_and_save_data()
 
         # Save calibration results on blender
         blender_save(self.cfg.paths.calib_results_dir, self.scene, self.logger)
 
-        # Save camera data
-        self.save_colormaps()
  
     def load(self) -> bool:
         return True
