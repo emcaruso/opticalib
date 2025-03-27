@@ -14,8 +14,8 @@ hydra:
 
 paths:
   src_dir: "${oc.env:ROOT}/src"                                         # ❌ Do not change
-  results_dir: "${oc.env:ROOT}/results/global"                          # ❌ Do not change
-  collection_dir: "${paths.results_dir}/collection/global"              # ❌ Do not change
+  results_dir: "${oc.env:ROOT}/results/extrinsics"                      # ❌ Do not change
+  collection_dir: "${paths.results_dir}/collection/extrinsics"          # ❌ Do not change
   charuco_images_dir: "${paths.results_dir}/charuco_images"             # ❌ Do not change
   calib_results_dir: "${paths.results_dir}/calib_results"               # ❌ Do not change
   features_file: "${paths.collection_dir}/features.npy"                 # ❌ Do not change
@@ -33,7 +33,7 @@ calibration:
   device: cuda                      # ✅ cpu or cuda
   focal_length_prior: null          # ✅ focal length prior in meters
   percentage_points_min: 0.35       # ✅ percentage of minimum number of points detected on the object
-  fixed_intrinsics: False           # ❌ Do not change  
+  fixed_intrinsics: True            # ❌ Do not change  
 
   calib_params:
     params: ${calib}                # ❌ Do not change 
