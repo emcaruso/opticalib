@@ -1,45 +1,45 @@
-sensor_type: basler
+sensor_type: basler                           # ❌ Do not change
 
-exposure_time: 10000
-gamma: 1
-gain: 10
+exposure_time: 10000                          # ✅ exposure time in microseconds
+gamma: 1                                      # ✅ gamma correction value 
+gain: 10                                      # ✅ intensity gain applied to image
 
-pfs_dir: "${oc.env:ROOT}/data/pfs_files/"
+pfs_dir: "${oc.env:ROOT}/data/pfs_files/"     # ✅ directory of pfs files
 
 trigger:
-  delay: 0
-  line: Line2
-  fps: 1
-
+  delay: 0                                    # ❌ Do not change#
+  line: Line2                                 # ❌ Do not change
+  fps: 1                                      # ✅ fps (maximum allowed y the network)
+  
 pixel_format:
-  val: BayerRG8
-  valid_options:
-    - Mono8
-    - BayerRG8
-    - RGB8
+  val: BayerRG8                               # ✅ BayerRG8 or Mono8 for RGB or Grayscale
+  valid_options:                              
+    - Mono8                                   # ❌ Do not change
+    - BayerRG8                                # ❌ Do not change
+    - RGB8                                    # ❌ Do not change
 
 converter:
-  val: PixelType_RGB8packed
-  valid_options:
-    - PixelType_Mono8packed
-    - PixelType_BayerRG8packed
-    - PixelType_RGB8packed
+  val: PixelType_RGB8packed                   # ❌ Do not change
+  valid_options:                              
+    - PixelType_Mono8packed                   # ❌ Do not change
+    - PixelType_BayerRG8packed                # ❌ Do not change
+    - PixelType_RGB8packed                    # ❌ Do not change
 
-color_space:
-  val: sRgb
-  valid_options:
-    - sRgb
-    - Off
+color_space:                                  
+  val: sRgb                                   # ❌ Do not change
+  valid_options:                              
+    - sRgb                                    # ❌ Do not change
+    - Off                                     # ❌ Do not change
 
 crop:
-  do: False
-  slot: 1
+  do: False                                   # ✅ True to allow crop
+  slot: 1                                     # ✅ Pylon slot on the configured ROI
 
-timeout: 5000
+timeout: 5000                                 # ❌ Do not change
 
 camera_info:
-  - "VendorName"
-  - "ModelName"
-  - "IpAddress"
-  - "SerialNumber"
-  - "MacAddress"
+  - "VendorName"                              # ❌ Do not change
+  - "ModelName"                               # ❌ Do not change
+  - "IpAddress"                               # ❌ Do not change
+  - "SerialNumber"                            # ❌ Do not change
+  - "MacAddress"                              # ❌ Do not change
