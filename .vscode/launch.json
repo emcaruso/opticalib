@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Calibrate intrinsics",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": ["--config-path", "${workspaceFolder}/configs",
+                    "--config-name", "cam_calib_intrinsics.yaml",
+                    "get_charuco_images=False",
+                    "collect.do=False",
+                    "calibration.do=True"],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -12,6 +12,7 @@ from utils_ema.camera_cv import Camera_cv, Intrinsics
 from utils_ema.geometry_pose import Pose
 from utils_ema.image import Image
 from utils_ema.geometry_euler import eul
+from utils_ema.geometry_quaternion import Quat
 
 
 class Scene():
@@ -29,9 +30,17 @@ class Scene():
 
     def __get_world_pose(self):
         n_dims = len(self.objects.pose.position.shape)
-        euler = eul(torch.zeros([1 for _ in range(n_dims)[1:]]+[3], dtype=torch.float32))
+
+        # quaternions
+        q_params = torch.zeros([1 for _ in range(n_dims)[1:]]+[4], dtype=torch.float32)
+        q_params[..., 0] = 1
+        o = Quat(q_params)
+        
+        # # euler
+        # o = eul(torch.zeros([1 for _ in range(n_dims)[1:]]+[3], dtype=torch.float32))
+        
         position = torch.zeros([1 for _ in range(n_dims)[1:]]+[3], dtype=torch.float32) 
-        pose = Pose(euler = euler, position = position, device=self.cameras.device)
+        pose = Pose(orientation = o, position = position, device=self.cameras.device)
         return pose
         
 
@@ -40,7 +49,7 @@ class Scene():
         # p2D_hat_und = self.cameras.project_points(p3D_tens, longtens=False, und=False )
         p2D_hat_und = self.cameras.project_points(p3D_tens, longtens=False, und=False, transform_cam_pose=self.world_pose)
         p2D_hat_tens = self.cameras.distort(p2D_hat_und)
-        mask = ((p2D_tens!=float('inf')).any(dim=-1).view(-1))
+        mask = ((p2D_tens!=float('inf')).all(dim=-1).view(-1))
 
         ratio = self.cameras.intr.pixel_unit_ratio()[...,None]
         if pixel_unit:

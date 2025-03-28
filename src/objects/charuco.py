@@ -9,9 +9,10 @@ from omegaconf import DictConfig
 from objects.object import Object, Features, ObjectDetector
 from utils_ema.charuco import Charuco
 from utils_ema.geometry_pose import Pose
-from utils_ema.geometry_euler import eul
 from utils_ema.image import Image
 from utils_ema.blender_utils import put_plane_in_scene, set_object_pose, set_object_texture
+from utils_ema.geometry_quaternion import Quat
+from utils_ema.geometry_euler import eul
 
 
 def first_higher(lst, value):
@@ -45,11 +46,23 @@ class CharucoObject(Object):
     def init_base(cls, cfg: DictConfig, device="cpu"):
         n = cfg.boards.n_boards
         p = CharucoObject.__get_board_params(cfg, device=device)
+
+        # quaternion
+        r_pose = Quat()
+        r_pose.params = r_pose.params[None, None, None, ...]
+        r_rel_p = torch.zeros([1,1,n,4], dtype=torch.float32)
+        r_rel_p[..., 0] = 1
+        r_rel = Quat(params=r_rel_p)
+        
+        # # euler
+        # r_pose = eul(torch.zeros([1,1,1,3], dtype=torch.float32))
+        # r_rel = eul(torch.zeros([1,1,n,3], dtype=torch.float32))
+        
         return cls(
             cfg=cfg,
             params=p,
-            pose=Pose(position=torch.zeros([1,1,1,3], dtype=torch.float32), euler=eul(torch.zeros([1,1,1,3], dtype=torch.float32))),
-            relative_poses=Pose(position=torch.zeros([1,1,n,3], dtype=torch.float32), euler=eul(torch.zeros([1,1,n,3], dtype=torch.float32))),
+            pose=Pose(position=torch.zeros([1,1,1,3], dtype=torch.float32), orientation=r_pose),
+            relative_poses=Pose(position=torch.zeros([1,1,n,3]), orientation=r_rel),
             device = device
         )
 
@@ -219,8 +232,8 @@ class CharucoObject(Object):
         # for board_id, p in enumerate(self.relative_poses):
         for board_id in range(self.params.n_boards):
             position = self.relative_poses.position.reshape(-1,3)[board_id]
-            euler = self.relative_poses.euler.e.reshape(-1,3)[board_id]
-            pose = Pose(position=position, euler=eul(euler))
+            orientation = self.relative_poses.orientation.params.reshape(-1,3)[board_id]
+            pose = Pose(position=position, orientation=orientation)
             name = f"board_{board_id:03d}"
             board = put_plane_in_scene(scene, name, self.params.length_x, self.params.length_y)
             set_object_pose(board, pose)

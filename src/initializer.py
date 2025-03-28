@@ -14,6 +14,7 @@ from optimizer import Optimizer
 from utils_ema.camera_cv import Camera_cv, Intrinsics
 from utils_ema.geometry_pose import Pose
 from utils_ema.geometry_euler import eul
+from utils_ema.geometry_quaternion import Quat
 from utils_ema.plot import plotter
 
 
@@ -96,6 +97,8 @@ class Initializer():
             D = scene.cameras.intr.D_params[0,cam_id,0,...].cpu().numpy()
             imageSize = tuple(scene.cameras.intr.resolution[0,cam_id,0,:].int().cpu().numpy())
             # res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=None, distCoeffs=None)
+            
+            
             res = cv2.calibrateCamera( objectPoints=p3D_list, imagePoints=p2D_list, imageSize=imageSize, cameraMatrix=K, distCoeffs=D, flags=flags)
             self.logger.info(f"Precalib error for camera {cam_id}: {res[0]}")
 
@@ -126,7 +129,7 @@ class Initializer():
             for board_id in range(n_board)[1:]:
                 avg_pose = Pose.average_poses(relative_poses[board_id])
                 self.obj.relative_poses.position[0,0,board_id] = avg_pose.position
-                self.obj.relative_poses.euler.e[0,0,board_id] = avg_pose.euler.e
+                self.obj.relative_poses.orientation.e[0,0,board_id] = avg_pose.orientation.params
 
         scene.cameras.intr.update_intrinsics()
     
@@ -179,11 +182,11 @@ class Initializer():
             ratio = scene.cameras.intr.pixel_unit_ratio()[0,cam_id,0,0].item()
             rvec = rvecs[ idx ][ cam_id ]
             tvec = tvecs[ idx ][ cam_id ] * (1/ratio)
-
-            cam_pose = Pose.cvvecs2pose(rvec, tvec)
+            # cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=eul)
+            cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=Quat)
             cam_pose.invert()
             scene.cameras.pose.position[0,cam_id,0] = cam_pose.position
-            scene.cameras.pose.euler.e[0,cam_id,0] = cam_pose.euler.e
+            scene.cameras.pose.orientation.params[0,cam_id,0] = cam_pose.orientation.params
             # plot for test purposes
             if self.cfg.calibration.test.init_show:
                 plotter.plot_pose(cam_pose)
@@ -226,15 +229,25 @@ class Initializer():
 
             intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
             position = torch.zeros([1,n_cameras,1,3], dtype=torch.float32)
-            euler = eul(torch.zeros([1,n_cameras,1,3], dtype=torch.float32))
-            pose = Pose(position=position, euler=euler)
+
+            # use quaternion
+            q_params = torch.zeros([1,n_cameras,1,4], dtype=torch.float32)
+            q_params[...,0] = 1
+            q = Quat(q_params)
+            pose = Pose(position=position, orientation=q)
+            
+            # # use eulers
+            # e = eul(torch.zeros([1,n_cameras,1,3], dtype=torch.float32))
+            # pose = Pose(position=position, orientation=e)
+            
         else:
             K = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "K.npy")).to(self.cfg.calibration.device)
             D = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "D.npy")).to(self.cfg.calibration.device)
             intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
             position = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "position.npy")).to(self.cfg.calibration.device)
             euler = eul(torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "euler.npy")).to(self.cfg.calibration.device))
-            pose = Pose(position=position, euler=euler)
+            q = euler.to_quat()
+            pose = Pose(position=position, orientation=q)
         cameras = Camera_cv(device=self.cfg.calibration.device, intrinsics=intr, pose=pose)
 
         return cameras
@@ -246,7 +259,7 @@ class Initializer():
         else:
             n = 1
         self.obj.pose.position = self.obj.pose.position.repeat(time_instants, n, 1, 1)
-        self.obj.pose.euler.e = self.obj.pose.euler.e.repeat(time_instants, n, 1, 1)
+        self.obj.pose.orientation.params = self.obj.pose.orientation.params.repeat(time_instants, n, 1, 1)
         return self.obj
 
     def __collect_features_gt(self) -> List[List[Features]]:
