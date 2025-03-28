@@ -9,10 +9,10 @@ pfs_dir: "${oc.env:ROOT}/data/pfs_files/"     # ✅ directory of pfs files
 trigger:
   delay: 0                                    # ❌ Do not change#
   line: Line2                                 # ❌ Do not change
-  fps: 1                                      # ✅ fps (maximum allowed y the network)
+  fps: 3                                      # ✅ fps (maximum allowed y the network)
   
 pixel_format:
-  val: BayerRG8                               # ✅ BayerRG8 or Mono8 for RGB or Grayscale
+  val: Mono8                                  # ✅ BayerRG8 or Mono8 for RGB or Grayscale
   valid_options:                              
     - Mono8                                   # ❌ Do not change
     - BayerRG8                                # ❌ Do not change

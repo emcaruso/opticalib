@@ -39,28 +39,28 @@ calibration:
     params: ${calib}                # ❌ Do not change 
     test: ${calibration.test}       # ❌ Do not change 
     device: ${calibration.device}   # ❌ Do not change 
-    iterations: 50                  # ✅ number of iterations during calibration
-    lr: 0.0001                      # ✅ learning rate
-    reg_weight: 10000               # ✅ regularization weight to keep fx and fy close 
+    iterations: 5000                # ✅ number of iterations during calibration
+    lr: 0.0001                        # ✅ learning rate
+    reg_weight: 00000               # ✅ regularization weight to keep fx and fy close 
     early_stopping_diff: 0.0        # ✅ difference between two consecutive losses to early stop 
     objects_pose_opt:                
-      position: [True, True, True]  # ✅ axes used to optimize objects poses
-      eul: [True, True, True]       # ✅ euler angles used to optimize object poses
+      position: [True, True, True] # ✅ axes used to optimize objects poses
+      eul: [True, True, True]     # ✅ euler angles used to optimize object poses
     world_rotation:                 
-      eul: [False, False, False]    # ✅ optimize world rotation 
+      eul: [False, False, True]    # ✅ optimize world rotation 
 
   precalib_params:
     params: ${precalib}             # ❌ Do not change  
     test: ${calibration.test}       # ❌ Do not change        
-    iterations: 50                  # ✅ number of iterations during calibration                  
-    lr: 0.05                        # ✅ learning rate                                            
+    iterations: 5000                # ✅ number of iterations during calibration                  
+    lr: 0.01                        # ✅ learning rate                                            
     reg_weight: 0                   # ❌ Do not change
     early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
     objects_pose_opt:               
       position: [True, True, True]  # ✅ axes used to optimize objects poses                       
-      eul: [True, True, True]       # ✅ euler angles used to optimize object poses                                                                               
+      eul: [True, True, True]      # ✅ euler angles used to optimize object poses                                                                               
     world_rotation:                 
-      eul: [False, False, False]    # ✅ optimize world rotation                                  
+      eul: [False, False, True]    # ✅ optimize world rotation                                  
 
   test:
     init_show: False                # 

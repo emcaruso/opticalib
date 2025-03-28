@@ -2,5 +2,5 @@
 cd "$SCRIPT_DIR/.."
 
 # run main
-sh ./scripts/calibrate_global.sh
-sh ./scripts/collect_global.sh
+sh ./calibrate_global.sh
+sh ./collect_global.sh

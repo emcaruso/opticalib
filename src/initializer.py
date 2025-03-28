@@ -65,13 +65,14 @@ class Initializer():
         n_board = points_2D.shape[2]
 
         if self.cfg.calibration.fixed_intrinsics:
-            flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_INTRINSIC
+            # flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_INTRINSIC
+            flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
+                    cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH | cv2.CALIB_FIX_PRINCIPAL_POINT)
         else:
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS
-            flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_FOCAL_LENGTH
+            # flags = cv2.CALIB_USE_INTRINSIC_GUESS
+            flags = None
             # flags = cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_FOCAL_LENGTH | cv2.CALIB_FIX_PRINCIPAL_POINT
-            # flags = (cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |  
-            #         cv2.CALIB_FIX_TANGENT_DIST | cv2.CALIB_FIX_FOCAL_LENGTH)
 
         for cam_id in range(scene.n_cameras):
             

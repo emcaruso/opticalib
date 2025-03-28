@@ -26,12 +26,12 @@ get_charuco_images: True            # ❌ Do not change
 
 collect:
   do: True                          # ❌ Do not change
-  one_cam_at_time: False            # ❌ Do not change
+  one_cam_at_time: True             # ❌ Do not change
 
 calibration:
   do: True                          # ❌ Do not change 
   device: cuda                      # ✅ cpu or cuda
-  focal_length_prior: 0.016         # ✅ focal length prior in meters
+  focal_length_prior: 0.016           # ✅ focal length prior in meters
   percentage_points_min: 0.35       # ✅ percentage of minimum number of points detected on the object
   fixed_intrinsics: False           # ❌ Do not change  
 
@@ -39,9 +39,9 @@ calibration:
     params: ${calib}                # ❌ Do not change 
     test: ${calibration.test}       # ❌ Do not change 
     device: ${calibration.device}   # ❌ Do not change 
-    iterations: 2000                # ✅ number of iterations during calibration
-    lr: 0.00001                     # ✅ learning rate
-    reg_weight: 10000               # ✅ regularization weight to keep fx and fy close 
+    iterations: 5000                # ✅ number of iterations during calibration
+    lr: 0.0001                      # ✅ learning rate
+    reg_weight: 0                   # ✅ regularization weight to keep fx and fy close 
     early_stopping_diff: 0.0        # ✅ difference between two consecutive losses to early stop 
     objects_pose_opt:                
       position: [True, True, True]  # ✅ axes used to optimize objects poses
@@ -52,8 +52,8 @@ calibration:
   precalib_params:
     params: ${precalib}             # ❌ Do not change  
     test: ${calibration.test}       # ❌ Do not change        
-    iterations: 2000                # ✅ number of iterations during calibration                  
-    lr: 0.001                       # ✅ learning rate                                            
+    iterations: 5000                # ✅ number of iterations during calibration                  
+    lr: 0.01                        # ✅ learning rate                                            
     reg_weight: 0                   # ❌ Do not change
     early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
     objects_pose_opt:               
@@ -65,7 +65,7 @@ calibration:
   test:
     init_show: False                # 
     calib_show_realtime: True       # ✅ enable realtime visualization
-    calib_show_last: False          # ✅ interactive visualization at the end of calibration
+    calib_show_last: True           # ✅ interactive visualization at the end of calibration
     calib_show_rate: 500            # ✅ rate during iteration for realtime visualization
 
 

@@ -2,5 +2,5 @@
 cd "$SCRIPT_DIR/.."
 
 # run main
-sh ./scripts/calibrate_extrinsics.sh
-sh ./scripts/collect_extrinsics.sh
+sh ./calibrate_extrinsics.sh
+sh ./collect_extrinsics.sh

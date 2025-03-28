@@ -2,5 +2,5 @@
 cd "$SCRIPT_DIR/.."
 
 # run main
-sh ./scripts/calibrate_intrinsics.sh
-sh ./scripts/collect_intrinsics.sh
+sh ./calibrate_intrinsics.sh
+sh ./collect_intrinsics.sh

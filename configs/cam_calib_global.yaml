@@ -32,7 +32,7 @@ calibration:
   do: True                          # ❌ Do not change 
   device: cuda                      # ✅ cpu or cuda
   focal_length_prior: null          # ✅ focal length prior in meters
-  percentage_points_min: 0.35       # ✅ percentage of minimum number of points detected on the object
+  percentage_points_min: 0.75       # ✅ percentage of minimum number of points detected on the object
   fixed_intrinsics: False           # ❌ Do not change  
 
   calib_params:

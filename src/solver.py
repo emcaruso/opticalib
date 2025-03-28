@@ -25,7 +25,7 @@ class Solver:
 
         # global / extrinsics calibration
         self.logger.info("Calibrating...")
-        intr_K = self.cfg.calibration.fixed_intrinsics
+        intr_K = not self.cfg.calibration.fixed_intrinsics
         intr_D = intr_K
         optimizer = Optimizer(cfg=self.cfg.calibration.calib_params, scene=self.scene, logger=self.logger, 
                               intr_K=intr_K, intr_D=intr_D, 

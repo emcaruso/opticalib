@@ -25,6 +25,12 @@ class CameraCalibrator:
 
     def collect_images(self):
 
+        # ask user to confirm
+        user_input = input("Are you sure you want to start collecting images? (y/n): ")
+        if user_input != "y":
+            self.logger.info("Exiting program.")
+            sys.exit()
+
         c = Collector(cfg=self.cfg.collector, logger=self.logger)
         c.postprocessing.add_function(self.detector.draw_features)
         self.__set_lights(c)

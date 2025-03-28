@@ -132,7 +132,7 @@ save:
 ```
 
 - Manual:
-Press space to capture images, and Q to quit
+Press space to capture images, and Q to quit.
 
 - Automatic:
 The collector starts acquiring images sequentially as soon at least 1 keypoint is visible. Press Q to stop the collection.

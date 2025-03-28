@@ -113,26 +113,28 @@ class Scene():
         os.makedirs(str(undistort_dir), exist_ok=True)
         for cam_id, cam in enumerate(self.cameras):
             for image_id in tqdm(range(self.time_instants), desc=f"Undistorting images for cam { cam_id }"):
-                img_dst = Image.from_path(str(Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"))
+                path = Path(self.cfg.paths.collection_dir) / "raw" / f"cam_{cam_id:03d}" / f"{image_id:03d}.png"
+                if path.exists():
+                    img_dst = Image.from_path(str(path))
 
-                # # Test undist
-                # import cv2
-                # from objects.object import CharucoDetector
-                # cam.intr.D_params = torch.tensor([-1.9, 1.9, 0, 0, -1.9])
-                # cam.intr.compute_undistortion_map()
-                # img_und = cam.intr.undistort_image(img_dst)
-                # detector = CharucoDetector(params = self.objects.params)
-                # p2D_und = detector.detect_features([img_und])[0].points[1]
-                # p2D_und = p2D_und.reshape(-1, 2)
-                # p2D_dst = cam.distort(p2D_und.cpu())
-                # img_und = img_und.draw_circles(p2D_und)
-                # img_dst = img_dst.draw_circles(p2D_dst)
-                # cv2.destroyAllWindows()
-                # img_und.show(img_name="dist")
-                # img_dst.show(img_name="ori")
-                # cv2.waitKey(0)
-                
-                img_und = cam.intr.undistort_image(img_dst)
-                img_und.save(undistort_dir / f"cam_{cam_id:03d}" / f"{image_id:03d}.png")
+                    # # Test undist
+                    # import cv2
+                    # from objects.object import CharucoDetector
+                    # cam.intr.D_params = torch.tensor([-1.9, 1.9, 0, 0, -1.9])
+                    # cam.intr.compute_undistortion_map()
+                    # img_und = cam.intr.undistort_image(img_dst)
+                    # detector = CharucoDetector(params = self.objects.params)
+                    # p2D_und = detector.detect_features([img_und])[0].points[1]
+                    # p2D_und = p2D_und.reshape(-1, 2)
+                    # p2D_dst = cam.distort(p2D_und.cpu())
+                    # img_und = img_und.draw_circles(p2D_und)
+                    # img_dst = img_dst.draw_circles(p2D_dst)
+                    # cv2.destroyAllWindows()
+                    # img_und.show(img_name="dist")
+                    # img_dst.show(img_name="ori")
+                    # cv2.waitKey(0)
+                    
+                    img_und = cam.intr.undistort_image(img_dst)
+                    img_und.save(undistort_dir / f"cam_{cam_id:03d}" / f"{image_id:03d}.png")
 
 
