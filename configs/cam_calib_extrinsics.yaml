@@ -53,7 +53,7 @@ calibration:
     params: ${precalib}             # ❌ Do not change  
     test: ${calibration.test}       # ❌ Do not change        
     iterations: 5000                # ✅ number of iterations during calibration                  
-    lr: 0.01                        # ✅ learning rate                                            
+    lr: 0.001                        # ✅ learning rate                                            
     reg_weight: 0                   # ❌ Do not change
     early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
     objects_pose_opt:               

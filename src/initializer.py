@@ -32,11 +32,7 @@ class Initializer():
 
         # init board relative poses + intrinsics (fixed focal length)
         self.__precalibration(scene)
-        self.logger.info("Pre-calibrated intrinsics (fixed focal length), and relative poses")
-
-        # init cameras extrinsics
-        self.__init_cameras_extrinsics(scene)
-        self.logger.info("Initialize camera extrinsics")
+        self.logger.info("Pre-calibration")
 
         # optimize to get object poses
         self.logger.info("Pre-calibrate object poses")
@@ -131,67 +127,84 @@ class Initializer():
                 self.obj.relative_poses.position[0,0,board_id] = avg_pose.position
                 self.obj.relative_poses.orientation.params[0,0,board_id] = avg_pose.orientation.params
 
+            #if one cam at time, init object poses with pnp
+            if self.cfg.collect.one_cam_at_time:
+                for time_id in range(scene.time_instants):
+                    for board_id in range(n_board):
+                        if time_id not in poses_dict.keys() or board_id not in poses_dict[time_id].keys():
+                            continue
+                        pose = poses_dict[time_id][board_id]
+                        self.obj.pose.position[time_id, cam_id, board_id] = pose.position
+                        self.obj.pose.orientation.params[time_id, cam_id, board_id] = pose.orientation.params
+            
         scene.cameras.intr.update_intrinsics()
+
+        # initialize cameras extrinsics
+        self.logger.info("Initializing cameras extrinsics")
+        self.__init_cameras_extrinsics(scene)
+
     
     
     def __init_cameras_extrinsics(self, scene: Scene):
 
-        mask = scene.features_gt!=float('inf')
-        mask = (mask.sum(dim=-2)[...,0] >= scene.n_features_min)
-        valid = mask.any(dim=1).all(dim=1)
-        scores = mask.reshape(scene.time_instants, -1).sum(dim=-1)
-        scores = scores * valid
-        best_time_ids = torch.where(scores == scores.max())[0]
-        best_score = scores[best_time_ids[0]].item()
 
-        if best_score == 0:
-            raise Exception("No valid time_id found to initialize cameras extrinsics")
+        if not self.cfg.collect.one_cam_at_time:
+            mask = scene.features_gt!=float('inf')
+            mask = (mask.sum(dim=-2)[...,0] >= scene.n_features_min)
+            valid = mask.any(dim=1).all(dim=1)
+            scores = mask.reshape(scene.time_instants, -1).sum(dim=-1)
+            scores = scores * valid
+            best_time_ids = torch.where(scores == scores.max())[0]
+            best_score = scores[best_time_ids[0]].item()
 
-        points_3D, points_2D = scene.get_3D_2D_points()
-        repr_errors = []
-        rvecs = []
-        tvecs = []
-        for best_time_id in best_time_ids:
-            repr_sum = 0
-            rvecs.append([]); tvecs.append([])
+            if best_score == 0:
+                raise Exception("No valid time_id found to initialize cameras extrinsics")
+
+            points_3D, points_2D = scene.get_3D_2D_points()
+            repr_errors = []
+            rvecs = []
+            tvecs = []
+            for best_time_id in best_time_ids:
+                repr_sum = 0
+                rvecs.append([]); tvecs.append([])
+                for cam_id in range(scene.n_cameras):
+                    ratio = scene.cameras.intr.pixel_unit_ratio()[0,cam_id,0,0].item()
+                    p3D = points_3D[best_time_id, 0, ...].reshape(-1,3) * ratio
+                    p2D = points_2D[best_time_id, cam_id, ...].reshape(-1,2) * ratio
+                    idxs = (p2D!=float('inf')).any(dim=-1)
+                    p3D = p3D[idxs]
+                    p2D = p2D[idxs]
+                    K = scene.cameras.intr.K_pix[0,cam_id,0].cpu().numpy()
+                    D = scene.cameras.intr.D_params[0,cam_id,0].cpu().numpy()
+                    res, rvec, tvec = cv2.solvePnP(p3D.cpu().numpy(), p2D.cpu().numpy(),K , D)
+                    _, rvec_list, tvec_list, repr_list = cv2.solvePnPGeneric(p3D.cpu().numpy(), p2D.cpu().numpy(),K , D)
+                    idx_best = [np.array_equal(a, tvec) for a in tvec_list].index(True)
+                    repr = repr_list[idx_best].item()
+                    repr_sum += repr
+                    rvecs[-1].append(rvec)
+                    tvecs[-1].append(tvec)
+
+                repr_errors.append(repr_sum/scene.n_cameras)
+            
+            min_repr_error = min(repr_errors)
+            best_time_id = best_time_ids[repr_errors.index(min_repr_error)].item()
+            idx = torch.where(best_time_ids == best_time_id)[0].item()
+            self.logger.info(f"Mean reprojection error during extrinsics initialization: {min_repr_error}")
             for cam_id in range(scene.n_cameras):
                 ratio = scene.cameras.intr.pixel_unit_ratio()[0,cam_id,0,0].item()
-                p3D = points_3D[best_time_id, 0, ...].reshape(-1,3) * ratio
-                p2D = points_2D[best_time_id, cam_id, ...].reshape(-1,2) * ratio
-                idxs = (p2D!=float('inf')).any(dim=-1)
-                p3D = p3D[idxs]
-                p2D = p2D[idxs]
-                K = scene.cameras.intr.K_pix[0,cam_id,0].cpu().numpy()
-                D = scene.cameras.intr.D_params[0,cam_id,0].cpu().numpy()
-                res, rvec, tvec = cv2.solvePnP(p3D.cpu().numpy(), p2D.cpu().numpy(),K , D)
-                _, rvec_list, tvec_list, repr_list = cv2.solvePnPGeneric(p3D.cpu().numpy(), p2D.cpu().numpy(),K , D)
-                idx_best = [np.array_equal(a, tvec) for a in tvec_list].index(True)
-                repr = repr_list[idx_best].item()
-                repr_sum += repr
-                rvecs[-1].append(rvec)
-                tvecs[-1].append(tvec)
-
-            repr_errors.append(repr_sum/scene.n_cameras)
-        
-        min_repr_error = min(repr_errors)
-        best_time_id = best_time_ids[repr_errors.index(min_repr_error)].item()
-        idx = torch.where(best_time_ids == best_time_id)[0].item()
-        self.logger.info(f"Mean reprojection error during extrinsics initialization: {min_repr_error}")
-        for cam_id in range(scene.n_cameras):
-            ratio = scene.cameras.intr.pixel_unit_ratio()[0,cam_id,0,0].item()
-            rvec = rvecs[ idx ][ cam_id ]
-            tvec = tvecs[ idx ][ cam_id ] * (1/ratio)
-            # cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=eul)
-            cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=Quat)
-            cam_pose.invert()
-            scene.cameras.pose.position[0,cam_id,0] = cam_pose.position
-            scene.cameras.pose.orientation.params[0,cam_id,0] = cam_pose.orientation.params
-            # plot for test purposes
+                rvec = rvecs[ idx ][ cam_id ]
+                tvec = tvecs[ idx ][ cam_id ] * (1/ratio)
+                # cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=eul)
+                cam_pose = Pose.cvvecs2pose(rvec, tvec, orientation_cls=Quat)
+                cam_pose.invert()
+                scene.cameras.pose.position[0,cam_id,0] = cam_pose.position
+                scene.cameras.pose.orientation.params[0,cam_id,0] = cam_pose.orientation.params
+                # plot for test purposes
+                if self.cfg.calibration.test.init_show:
+                    plotter.plot_pose(cam_pose)
+                    plotter.plot_points(points_3D[best_time_id, 0, ...].reshape(-1,3))
             if self.cfg.calibration.test.init_show:
-                plotter.plot_pose(cam_pose)
-                plotter.plot_points(points_3D[best_time_id, 0, ...].reshape(-1,3))
-        if self.cfg.calibration.test.init_show:
-            plotter.show()
+                plotter.show()
 
 
 
