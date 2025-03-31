@@ -129,13 +129,12 @@ class Initializer():
             for board_id in range(n_board)[1:]:
                 avg_pose = Pose.average_poses(relative_poses[board_id])
                 self.obj.relative_poses.position[0,0,board_id] = avg_pose.position
-                self.obj.relative_poses.orientation.e[0,0,board_id] = avg_pose.orientation.params
+                self.obj.relative_poses.orientation.params[0,0,board_id] = avg_pose.orientation.params
 
         scene.cameras.intr.update_intrinsics()
     
     
     def __init_cameras_extrinsics(self, scene: Scene):
-
 
         mask = scene.features_gt!=float('inf')
         mask = (mask.sum(dim=-2)[...,0] >= scene.n_features_min)
@@ -196,8 +195,6 @@ class Initializer():
 
 
 
-        
-
     def __get_cameras(self) -> Camera_cv:
 
         n_cameras = CollectorLoader.n_cams
@@ -246,8 +243,12 @@ class Initializer():
             intr = Intrinsics(K=K, D=D, resolution=resolution, sensor_size=sensor_size)
             position = torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "position.npy")).to(self.cfg.calibration.device)
             euler = eul(torch.tensor(np.load( Path(self.cfg.paths.first_camera_guess) / "euler.npy")).to(self.cfg.calibration.device))
+
+            # use quaternion
             q = euler.to_quat()
             pose = Pose(position=position, orientation=q)
+            # pose = Pose(position=position, orientation=euler)
+
         cameras = Camera_cv(device=self.cfg.calibration.device, intrinsics=intr, pose=pose)
 
         return cameras

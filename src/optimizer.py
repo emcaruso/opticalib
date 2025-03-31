@@ -154,10 +154,14 @@ class Optimizer:
         self.scene.cameras.intr.update_intrinsics()
 
         # for quaternions
-        self.scene.cameras.pose.orientation.normalize_data()
-        self.scene.objects.pose.orientation.normalize_data()
-        self.scene.objects.relative_poses.orientation.normalize_data()
-        self.scene.world_pose.orientation.normalize_data()
+        if hasattr(self.scene.cameras.pose.orientation, "normalize_data"):
+            self.scene.cameras.pose.orientation.normalize_data()
+        if hasattr(self.scene.objects.pose.orientation, "normalize_data"):
+            self.scene.objects.pose.orientation.normalize_data()
+        if hasattr(self.scene.objects.relative_poses.orientation, "normalize_data"):
+            self.scene.objects.relative_poses.orientation.normalize_data()
+        if hasattr(self.scene.world_pose.orientation, "normalize_data"):
+            self.scene.world_pose.orientation.normalize_data()
         
         
     # TODO
@@ -170,7 +174,7 @@ class Optimizer:
         if self.obj_pose:
             position = self.scene.objects.pose.position
             orientation = self.scene.objects.pose.orientation.params
-            params.append({"params":position, "lr":0.001*self.cfg.lr})
+            params.append({"params":position, "lr":0.05*self.cfg.lr})
             params.append({"params":orientation, "lr":1*self.cfg.lr})
             if "objects_pose_opt" in self.cfg.keys():
                 position_mask = torch.zeros_like(position)
@@ -190,7 +194,7 @@ class Optimizer:
         
         # collect object relative
         if self.obj_rel:
-            params.append({"params":self.scene.objects.relative_poses.position, "lr":0.001*self.cfg.lr})
+            params.append({"params":self.scene.objects.relative_poses.position, "lr":0.05*self.cfg.lr})
             params.append({"params":self.scene.objects.relative_poses.orientation.params, "lr":1*self.cfg.lr})
             pos = torch.ones_like(self.scene.objects.relative_poses.position)
             ori = torch.ones_like(self.scene.objects.relative_poses.orientation.params)
@@ -201,7 +205,7 @@ class Optimizer:
 
         # collect extrinsics cam parameters
         if self.extr:
-            params.append({"params":self.scene.cameras.pose.position, "lr":0.001*self.cfg.lr})
+            params.append({"params":self.scene.cameras.pose.position, "lr":0.05*self.cfg.lr})
             params.append({"params":self.scene.cameras.pose.orientation.params, "lr":1*self.cfg.lr})
             masks.append(torch.ones_like(self.scene.cameras.pose.position))
             masks.append(torch.ones_like(self.scene.cameras.pose.orientation.params))
@@ -220,10 +224,10 @@ class Optimizer:
         if self.world_rot:
             p = self.scene.world_pose
             params.append({"params":p.orientation.params, "lr":1*self.cfg.lr})
-            masks.append(torch.zeros_like(p.orientation.params))
+            # masks.append(torch.zeros_like(p.orientation.params))
             # mask = torch.tensor(self.cfg.world_rotation.eul, device=p.device)[None,None,None]
             # masks.append(mask)
-            # masks.append(torch.ones_like(p.orientation.params))
+            masks.append(torch.ones_like(p.orientation.params))
 
         for p in params:
             p["params"].requires_grad = True

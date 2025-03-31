@@ -1,2 +1,2 @@
 _target_: torch.optim.Adam
-betas: [0.5, 0.1]
+betas: [0.7, 0.1]

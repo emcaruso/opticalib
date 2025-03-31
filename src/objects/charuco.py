@@ -232,7 +232,8 @@ class CharucoObject(Object):
         # for board_id, p in enumerate(self.relative_poses):
         for board_id in range(self.params.n_boards):
             position = self.relative_poses.position.reshape(-1,3)[board_id]
-            orientation = self.relative_poses.orientation.params.reshape(-1,3)[board_id]
+            orientation = self.relative_poses.orientation
+            orientation.params = orientation.params.reshape(-1,orientation.params.shape[-1])[board_id]
             pose = Pose(position=position, orientation=orientation)
             name = f"board_{board_id:03d}"
             board = put_plane_in_scene(scene, name, self.params.length_x, self.params.length_y)

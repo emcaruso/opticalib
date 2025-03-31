@@ -2,4 +2,4 @@ defaults:
   - _self_
   - optimizer: adam
   - scheduler: cosine
-  - loss: l1
+  - loss: l2

@@ -20,8 +20,11 @@ def blender_save(save_dir: str, scene_calib: Scene, logger: Logger):
     o = scene_calib.objects.put_blender_obj_in_scene(scene_blender, save_dir)
     for time_id in range(scene_calib.time_instants):
         position = scene_calib.objects.pose.position.reshape(-1,3)[time_id]
-        euler = scene_calib.objects.pose.euler.e.reshape(-1,3)[time_id]
-        pose = Pose(position=position, euler=eul(euler))
+        orientation = scene_calib.objects.pose.orientation
+        orientation_cls = orientation.__class__
+        orientation = orientation.params.reshape(-1,orientation.params.shape[-1])[time_id]
+        # euler = scene_calib.objects.pose.euler.e.reshape(-1,3)[time_id]
+        pose = Pose(position=position, orientation=orientation_cls(orientation))
         set_object_pose(o, pose)
         o.keyframe_insert(data_path="location", frame=time_id)
         o.keyframe_insert(data_path="rotation_euler", frame=time_id)

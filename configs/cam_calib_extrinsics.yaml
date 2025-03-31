@@ -57,8 +57,8 @@ calibration:
     reg_weight: 0                   # ❌ Do not change
     early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
     objects_pose_opt:               
-      position: [True, True, True]  # ✅ axes used to optimize objects poses                       
-      eul: [True, True, True]      # ✅ euler angles used to optimize object poses                                                                               
+      position: [True, False, False]  # ✅ axes used to optimize objects poses                       
+      eul: [False, False, False]      # ✅ euler angles used to optimize object poses                                                                               
     world_rotation:                 
       eul: [False, False, True]    # ✅ optimize world rotation                                  
 

@@ -67,6 +67,9 @@ class Scene():
         else:
             return p2D, p2D_hat
 
+    def get_directions_xy_flat_masked(self):
+        pass
+
     def get_xy(self, pixel_unit=False) -> Tuple[torch.Tensor, torch.Tensor]:
         p3D, p2D = self.get_3D_2D_points()
         # p2D_hat_und = self.cameras.project_points(p3D, longtens=False, und=False)
@@ -88,7 +91,7 @@ class Scene():
     def scene_postprocess_and_save_data(self):
 
         # apply world rotation
-        self.objects.pose.euler = self.objects.pose.euler.rot2eul(self.world_pose.rotation().transpose(-2,-1) @ self.objects.pose.rotation())
+        self.objects.pose.orientation = self.objects.pose.orientation.from_rot(self.world_pose.rotation().transpose(-2,-1) @ self.objects.pose.rotation())
         self.cameras.pose = self.world_pose.get_inverse_pose() * self.cameras.pose
 
         # save cameras pose
@@ -98,7 +101,7 @@ class Scene():
             np.save(Path(self.cfg.paths.calib_results_dir) / "K.npy", self.cameras.intr.K.detach().cpu().numpy())
             np.save(Path(self.cfg.paths.calib_results_dir) / "D.npy", self.cameras.intr.D_params.detach().cpu().numpy())
             np.save(Path(self.cfg.paths.calib_results_dir) / "position.npy", self.cameras.pose.position.detach().cpu().numpy())
-            np.save(Path(self.cfg.paths.calib_results_dir) / "euler.npy", self.cameras.pose.euler.e.detach().cpu().numpy())
+            np.save(Path(self.cfg.paths.calib_results_dir) / "orientation.npy", self.cameras.pose.orientation.params.detach().cpu().numpy())
 
         # from single to multiple cameras
         with torch.no_grad():
@@ -110,8 +113,10 @@ class Scene():
                 sensor_size = self.cameras.intr.sensor_size.reshape(-1,2)[cam_id]
                 intr = Intrinsics(K=K.cpu(), D=D.cpu(), resolution=resolution.cpu(), sensor_size=sensor_size.cpu())
                 position = self.cameras.pose.position.reshape(-1,3)[cam_id]
-                euler = self.cameras.pose.euler.e.reshape(-1,3)[cam_id]
-                pose = Pose(position=position, euler=eul(euler))
+                orientation = self.cameras.pose.orientation
+                orientation_cls = orientation.__class__
+                orientation = orientation.params.reshape(-1,orientation.params.shape[-1])[cam_id]
+                pose = Pose(position=position, orientation=orientation_cls(orientation))
                 cam = Camera_cv(intrinsics=intr, pose=pose, name=f"cam_{cam_id:03d}")
                 cams.append(cam)
             self.cameras = cams

@@ -34,14 +34,12 @@ class Solver:
 
 
     def save_colormaps(self, cmap='viridis', point_size=10):
-
         x_tens, y_tens, mask = self.scene.get_xy(pixel_unit=True)
         dir = Path(self.cfg.paths.calib_results_dir) / "colormaps"
         if not dir.exists():
             dir.mkdir(parents=True)
 
         for cam_id in range(self.scene.n_cameras):
-
             idxs = mask[:,cam_id,...].reshape(-1).detach().cpu()
             x = x_tens[:,cam_id,...].reshape(-1,2)[idxs].detach().cpu()
             y = y_tens[:,cam_id,...].reshape(-1,2)[idxs].detach().cpu()
@@ -61,12 +59,17 @@ class Solver:
             # Convert tensors to NumPy for plotting
             A_np = coords.detach().cpu().numpy()
             B_np = B_normalized.detach().cpu().numpy().flatten()
+            distances_np = distances.detach().cpu().numpy().flatten()
 
             # Create scatter plot with Plotly
             fig = go.Figure(data=go.Scatter(
-                x=A_np[:, 0], y=A_np[:, 1], mode='markers',
+                x=A_np[:, 0], 
+                y=A_np[:, 1], 
+                mode='markers',
                 marker=dict(size=point_size, color=B_np, colorscale=cmap, showscale=True,
-                            colorbar=dict(title=f"Distance (Max: {B_max.item():.2f} pixels)"))
+                            colorbar=dict(title=f"Distance (Max: {B_max.item():.2f} pixels)")),
+                text=[f"Distance: {d:.2f} pixels" for d in distances_np],  # Display distance on hover
+                hoverinfo='text'  # Show only text on hover
             ))
 
             # Flip Y-axis (higher values at the top)
@@ -74,9 +77,8 @@ class Solver:
                 title="Scatter Plot with Colormap",
                 xaxis_title="X Coordinate",
                 yaxis_title="Y Coordinate",
-                # xaxis=dict(autorange='reversed'),  # Flip the vertical axis
                 yaxis=dict(autorange='reversed'),  # Flip the vertical axis
-                yaxis_scaleanchor="x",  # Equal aspect ratio (same scale on both axes)
+                yaxis_scaleanchor="x",  # Equal aspect ratio
                 template="plotly_white"
             )
 
@@ -87,11 +89,10 @@ class Solver:
                 line=dict(color="black", width=2),
             )
 
-
             # Show the figure
             fig.show()
 
-            # save figure
+            # Save figure
             filename = f"colormap_cam_{cam_id}.html"
             path = dir / filename
             fig.write_html(path)

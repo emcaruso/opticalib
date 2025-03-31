@@ -40,7 +40,7 @@ calibration:
     test: ${calibration.test}       # ❌ Do not change 
     device: ${calibration.device}   # ❌ Do not change 
     iterations: 5000                # ✅ number of iterations during calibration
-    lr: 0.001                      # ✅ learning rate
+    lr: 0.0001                      # ✅ learning rate
     reg_weight: 0                   # ✅ regularization weight to keep fx and fy close 
     early_stopping_diff: 0.0        # ✅ difference between two consecutive losses to early stop 
     objects_pose_opt:                
@@ -52,8 +52,8 @@ calibration:
   precalib_params:
     params: ${precalib}             # ❌ Do not change  
     test: ${calibration.test}       # ❌ Do not change        
-    iterations: 20000                # ✅ number of iterations during calibration                  
-    lr: 10                        # ✅ learning rate                                            
+    iterations: 10000                # ✅ number of iterations during calibration                  
+    lr: 0.01                        # ✅ learning rate                                            
     reg_weight: 0                   # ❌ Do not change
     early_stopping_diff: 0.         # ✅ difference between two consecutive losses to early stop
     objects_pose_opt:               
@@ -66,6 +66,6 @@ calibration:
     init_show: False                # 
     calib_show_realtime: True       # ✅ enable realtime visualization
     calib_show_last: True          # ✅ interactive visualization at the end of calibration
-    calib_show_rate: 1            # ✅ rate during iteration for realtime visualization
+    calib_show_rate: 500            # ✅ rate during iteration for realtime visualization
 
 
