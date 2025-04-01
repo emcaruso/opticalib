@@ -7,11 +7,10 @@ from objects.charuco import CharucoObject
 from utils_ema.image import Image
 
 
-
 def main():
 
     root = Path(os.path.dirname(os.path.realpath(__file__)))
-    dir = root / ".."/ "configs" / "objects"
+    dir = root / ".." / "configs" / "objects"
     res_dir = root / ".." / "results" / "charuco_boards"
 
     os.chdir(str(dir))
@@ -21,7 +20,11 @@ def main():
     root.withdraw()  # Hide the root window
 
     # Open a file dialog to select a file
-    yaml_path = Path(filedialog.askopenfilename(title="Select a file", filetypes=[("All files", "*.yaml")]))
+    yaml_path = Path(
+        filedialog.askopenfilename(
+            title="Select a file", filetypes=[("All files", "*.yaml")]
+        )
+    )
     cfg = OmegaConf.load(str(yaml_path))
 
     #  generate images
@@ -29,9 +32,7 @@ def main():
         charuco = CharucoObject.init_base(cfg)
         images = charuco.generate_charuco_images()
         for i, image in enumerate(images):
-            import ipdb; ipdb.set_trace()
             image.save(res_dir / yaml_path.stem / f"charuco_board_{i}.png")
-
 
     # show
     Image.show_multiple_images(images)
